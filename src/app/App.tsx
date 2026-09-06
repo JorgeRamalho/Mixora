@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { AppShell } from "../components/layout/AppShell";
 import { appBasename } from "../lib/base";
+import { createMixerQueryClient } from "../lib/tracks-api/query-client";
 import { AcademyPage } from "../pages/AcademyPage";
 import { CadastroPage } from "../pages/CadastroPage";
 import { ConfirmEmailPage } from "../pages/ConfirmEmailPage";
@@ -36,11 +38,14 @@ function RouteMeta() {
 }
 
 export default function App() {
+  const [queryClient] = useState(() => createMixerQueryClient());
+
   return (
-    <BrowserRouter basename={appBasename()}>
-      <RouteMeta />
-      <AppShell>
-        <Routes>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter basename={appBasename()}>
+        <RouteMeta />
+        <AppShell>
+          <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/mixer" element={<MixerPage />} />
           <Route path="/academia" element={<AcademyPage />} />
@@ -51,8 +56,9 @@ export default function App() {
           <Route path="/cadastro/confirmar-email" element={<ConfirmEmailPage />} />
           <Route path="/dj" element={<DjPage />} />
           <Route path="/politicas" element={<LegalPage />} />
-        </Routes>
-      </AppShell>
-    </BrowserRouter>
+          </Routes>
+        </AppShell>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
