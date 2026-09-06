@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import {
   consumeLoadClickSuppression,
   deckFileInputId,
@@ -8,6 +8,11 @@ import { pitchSliderStyle } from "../../lib/range-slider-style";
 import { engine } from "../../lib/audio-engine";
 import { getCamelotKey, harmonicDistance, resolveMusicalKey } from "../../lib/musical-key";
 import type { BrowseSource, DeckId, MixerAction } from "../../types";
+
+/** Fração da faixa visível no modo zoom, centrada no playhead. */
+const WAVE_ZOOM_WINDOW = 0.14;
+const WAVE_NORMAL_BARS = 64;
+const WAVE_ZOOM_BARS = 160;
 
 function Waveform({
   id,
@@ -24,6 +29,7 @@ function Waveform({
   accentColor: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -46,21 +52,38 @@ function Waveform({
       ctx.fillStyle = "rgba(7, 11, 18, 0.92)";
       ctx.fillRect(0, 0, width, height);
 
-      for (let bar = 0; bar < 64; bar += 1) {
-        const x = (bar / 64) * width;
+      const barCount = zoomed ? WAVE_ZOOM_BARS : WAVE_NORMAL_BARS;
+      let windowStart = 0;
+      let windowEnd = 1;
+      if (zoomed) {
+        const half = WAVE_ZOOM_WINDOW / 2;
+        windowStart = Math.max(0, phase - half);
+        windowEnd = Math.min(1, phase + half);
+        if (windowEnd - windowStart < WAVE_ZOOM_WINDOW) {
+          if (windowStart === 0) windowEnd = Math.min(1, WAVE_ZOOM_WINDOW);
+          else if (windowEnd === 1) windowStart = Math.max(0, 1 - WAVE_ZOOM_WINDOW);
+        }
+      }
+
+      for (let bar = 0; bar < barCount; bar += 1) {
+        const trackT = windowStart + (bar / barCount) * (windowEnd - windowStart);
+        const x = (bar / barCount) * width;
         const fromPeaks =
           peaks && peaks.length > 0
-            ? (peaks[Math.floor((bar / 64) * peaks.length)] ?? 0) * 36
+            ? (peaks[Math.floor(trackT * peaks.length)] ?? 0) * (zoomed ? 48 : 36)
             : Math.sin(bar * 0.55 + phase * Math.PI * 2) * 6;
         const h = 8 + fromPeaks + (bar % 4 === 0 ? 14 : 6);
         const grad = ctx.createLinearGradient(0, height - h, 0, height);
         grad.addColorStop(0, `${base}88`);
         grad.addColorStop(1, `${base}22`);
         ctx.fillStyle = grad;
-        ctx.fillRect(x, height - h, width / 64 - 1, h);
+        ctx.fillRect(x, height - h, width / barCount - 1, h);
       }
 
-      const playhead = phase * width;
+      const playheadT = zoomed
+        ? (phase - windowStart) / Math.max(windowEnd - windowStart, 0.0001)
+        : phase;
+      const playhead = playheadT * width;
       ctx.strokeStyle = "#ffe08a";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -89,9 +112,24 @@ function Waveform({
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [accentColor, id, phase, spinning, peaks]);
+  }, [accentColor, id, phase, spinning, peaks, zoomed]);
 
-  return <canvas ref={ref} className="cdj-wave" aria-hidden="true" />;
+  return (
+    <button
+      type="button"
+      className="cdj-wave-hit"
+      data-zoomed={zoomed ? "true" : "false"}
+      aria-pressed={zoomed}
+      aria-label={
+        zoomed
+          ? `Waveform deck ${id.toUpperCase()} ampliada. Clique para visão geral`
+          : `Waveform deck ${id.toUpperCase()}. Clique para ampliar`
+      }
+      onClick={() => setZoomed((current) => !current)}
+    >
+      <canvas ref={ref} className="cdj-wave" aria-hidden="true" />
+    </button>
+  );
 }
 
 function JogWheel({
@@ -254,7 +292,11 @@ export function CdjDeck({
           <p className="cdj-remote-load" role={remoteLoad?.status === "error" ? "alert" : "status"}>
             <span>{remoteCopy}</span>
             {remoteLoad?.status === "error" ? (
-              <button type="button" className="cdj-remote-retry" onClick={onRetryRemote}>
+              <button
+                type="button"
+                className="cdj-remote-retry"
+                onClick={() => onRetryRemote?.()}
+              >
                 Tentar de novo
               </button>
             ) : null}
@@ -266,18 +308,26 @@ export function CdjDeck({
             <span className="cdj-metric-value">{bpm}</span>
             <span className="cdj-metric-sub">Pitch {deck.pitch.toFixed(1)}%</span>
           </div>
-          <button
-            type="button"
-            className="cdj-metric cdj-metric--key"
-            data-harmony={harmony}
-            data-filter-active={browseKeyFilter ? "true" : "false"}
-            aria-label={`Tom Camelot ${deck.track.key}. Clique para filtrar a biblioteca por escala`}
-            onClick={onKeyMetricClick}
-          >
-            <span className="cdj-metric-label">KEY</span>
-            <span className="cdj-metric-value">{deck.track.key}</span>
-            <span className="cdj-metric-sub">{musical.label}</span>
-          </button>
+          {onKeyMetricClick ? (
+            <button
+              type="button"
+              className="cdj-metric cdj-metric--key"
+              data-harmony={harmony}
+              data-filter-active={browseKeyFilter ? "true" : "false"}
+              aria-label={`Tom ${deck.track.key}. Clique para filtrar a biblioteca por escala Camelot`}
+              onClick={() => onKeyMetricClick()}
+            >
+              <span className="cdj-metric-label">KEY</span>
+              <span className="cdj-metric-value">{deck.track.key}</span>
+              <span className="cdj-metric-sub">{musical.label}</span>
+            </button>
+          ) : (
+            <div className="cdj-metric cdj-metric--key" data-harmony={harmony}>
+              <span className="cdj-metric-label">KEY</span>
+              <span className="cdj-metric-value">{deck.track.key}</span>
+              <span className="cdj-metric-sub">{musical.label}</span>
+            </div>
+          )}
           <div className="cdj-metric cdj-metric--phase">
             <span className="cdj-metric-label">PHASE</span>
             <span

@@ -79,7 +79,7 @@ export function MidiStatus({
           aria-label="Conectar controladora DDJ-400"
           onClick={onConnect}
         >
-          {status === "connected" ? "Religar" : "Conectar controladora"}
+          {status === "connected" ? "Religar" : "Conectar"}
         </button>
       ) : null}
     </div>
