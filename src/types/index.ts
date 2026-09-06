@@ -18,8 +18,8 @@ export type {
 } from "./harmony";
 export type { DjProfile, ExperienceLevel, HardwareKind } from "./dj";
 export type {
+  BrowseSource,
   DeckEq,
-  DeckEqKill,
   DeckFileMeta,
   DeckId,
   DeckLoop,

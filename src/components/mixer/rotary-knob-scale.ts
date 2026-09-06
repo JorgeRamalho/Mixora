@@ -2,6 +2,33 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Extensão do arco físico do knob Pioneer, em graus. */
+export const KNOB_ARC_DEG = 270;
+
+/** Ângulo do ponteiro no mínimo do curso. */
+export const KNOB_ARC_START_DEG = -135;
+
+/**
+ * Converte a fração visual do arco em rotação do ponteiro.
+ *
+ * @param norm Posição normalizada de 0 a 1 no curso do knob.
+ */
+export function dialDeg(norm: number) {
+  return clamp(norm, 0, 1) * KNOB_ARC_DEG + KNOB_ARC_START_DEG;
+}
+
+/**
+ * Converte um ângulo de arraste em valor do knob no arco de 270°.
+ *
+ * @param deg Ângulo em graus relativo ao centro do dial.
+ * @param min Limite esquerdo.
+ * @param max Limite direito.
+ */
+export function valueFromAngle(deg: number, min: number, max: number) {
+  const norm = clamp((deg - KNOB_ARC_START_DEG) / KNOB_ARC_DEG, 0, 1);
+  return valueFromVisualNorm(norm, min, max);
+}
+
 /**
  * Diz se o curso tem detent no zero, como EQ e filter.
  *

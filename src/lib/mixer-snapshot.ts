@@ -15,7 +15,6 @@ export function cloneMixerSnapshot(snapshot: MixerSnapshot): MixerSnapshot {
     a: {
       ...snapshot.a,
       eq: { ...snapshot.a.eq },
-      eqKill: { ...snapshot.a.eqKill },
       loop: { ...snapshot.a.loop },
       hotCues: snapshot.a.hotCues.map((cue) => ({ ...cue })),
       track: { ...snapshot.a.track },
@@ -24,7 +23,6 @@ export function cloneMixerSnapshot(snapshot: MixerSnapshot): MixerSnapshot {
     b: {
       ...snapshot.b,
       eq: { ...snapshot.b.eq },
-      eqKill: { ...snapshot.b.eqKill },
       loop: { ...snapshot.b.loop },
       hotCues: snapshot.b.hotCues.map((cue) => ({ ...cue })),
       track: { ...snapshot.b.track },

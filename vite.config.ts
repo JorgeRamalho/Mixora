@@ -82,6 +82,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/deezer/, ""),
       },
+      "/api/tracks": {
+        target: process.env.VITE_TRACKS_API_BASE ?? "http://127.0.0.1:8765",
+        changeOrigin: true,
+      },
     },
   },
   preview: {

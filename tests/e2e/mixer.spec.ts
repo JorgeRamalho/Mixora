@@ -47,7 +47,7 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
         gapMB: deckB.offsetLeft - (mix.offsetLeft + mix.offsetWidth),
         heightDelta: Math.abs(a.height - m.height),
         overflowX,
-        hotpads: document.querySelectorAll(".cdj-hotcue").length,
+        hotpads: document.querySelectorAll(".cdj-performance-pad").length,
         pitchBeside,
         eqBoostButtons,
         unlabeled: [...document.querySelectorAll(".mixer-cabinet button, .mixer-cabinet input")].filter(
@@ -69,7 +69,7 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
     expect(metrics.gapAM).toBeGreaterThanOrEqual(8);
     expect(metrics.gapMB).toBeGreaterThanOrEqual(8);
     expect(metrics.overflowX).toBeLessThanOrEqual(8);
-    expect(metrics.hotpads).toBe(0);
+    expect(metrics.hotpads).toBe(8);
     expect(metrics.pitchBeside).toEqual([true, true]);
     expect(metrics.eqBoostButtons).toBe(0);
     expect(metrics.unlabeled).toBe(0);
@@ -149,8 +149,9 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
     await expect(focused).toBeVisible();
 
     const minHit = await page
-      .locator(".mixer-eq-kill")
-      .first()
+      .getByLabel("Volume master")
+      .locator("..")
+      .locator(".mixer-vol-knob-dial")
       .evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { w: r.width, h: r.height };
@@ -167,10 +168,11 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
       const board = document.querySelector(".mixer-board");
       if (!board) return [];
       return [...board.children].map((el) => {
+        if (el.classList.contains("mixer-cabinet-head")) return "head";
         if (el.classList.contains("mixer-console")) return "mixer";
         return el.getAttribute("data-deck");
       });
     });
-    expect(order).toEqual(["a", "mixer", "b"]);
+    expect(order).toEqual(["head", "a", "mixer", "b"]);
   });
 });

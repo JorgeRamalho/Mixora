@@ -13,6 +13,8 @@ import type { DeckId, MixerAction } from "../../types/mixer";
 import type { ParsedMidiMessage } from "./parse-message";
 import {
   BROWSER_NOTE,
+  BEAT_JUMP_FIRST_NOTE,
+  BEAT_LOOP_FIRST_NOTE,
   DDJ_STATUS,
   DECK_CC_14BIT,
   DECK_CC_JOG,
@@ -25,6 +27,7 @@ import {
   jogDelta,
   MIXER_CC_14BIT,
   MIXER_CC_BROWSE,
+  PAD_COUNT,
   type Cc14Bit,
 } from "./ddj-400-protocol";
 import {
@@ -148,6 +151,12 @@ function mapDeckNote(event: ParsedMidiMessage): MixerAction | null {
     return null;
   }
 
+  if (event.data1 === DECK_NOTE.jogTouch) {
+    if (isPress(event.data2)) return { type: "scratchBegin", id: deck };
+    if (isRelease(event.data2)) return { type: "scratchEnd", id: deck };
+    return null;
+  }
+
   if (!isPress(event.data2)) return null;
 
   switch (event.data1) {
@@ -167,6 +176,10 @@ function mapDeckNote(event: ParsedMidiMessage): MixerAction | null {
       return { type: "loopOff", id: deck };
     case DECK_NOTE.reloop:
       return { type: "toggleLoop", id: deck };
+    case DECK_NOTE.loopHalve:
+      return { type: "loopHalve", id: deck };
+    case DECK_NOTE.loopDouble:
+      return { type: "loopDouble", id: deck };
     default:
       return null;
   }
@@ -192,10 +205,23 @@ function mapPadNote(event: ParsedMidiMessage): MixerAction | null {
   const deck = deckFromStatus(event.status);
   if (!deck || !isPress(event.data2)) return null;
 
-  const index = event.data1 - HOT_CUE_FIRST_NOTE;
-  if (index < 0 || index >= HOT_CUE_SLOTS) return null;
+  const hotIndex = event.data1 - HOT_CUE_FIRST_NOTE;
+  if (hotIndex >= 0 && hotIndex < HOT_CUE_SLOTS) {
+    return { type: "hotCuePad", id: deck, slot: hotIndex + 1 };
+  }
 
-  return { type: "hotCuePad", id: deck, slot: index + 1 };
+  const jumpIndex = event.data1 - BEAT_JUMP_FIRST_NOTE;
+  if (jumpIndex >= 0 && jumpIndex < PAD_COUNT) {
+    return { type: "jumpBeats", id: deck, beats: jumpIndex + 1 };
+  }
+
+  const loopIndex = event.data1 - BEAT_LOOP_FIRST_NOTE;
+  if (loopIndex >= 0 && loopIndex < PAD_COUNT) {
+    const beats = [1, 2, 4, 8, 16, 32, 1, 2][loopIndex] ?? 4;
+    return { type: "setBeatLoop", id: deck, beats };
+  }
+
+  return null;
 }
 
 /**
@@ -248,7 +274,11 @@ function mapJog(
     divisor,
   );
   ctx.jogTicks.set(key, rest);
-  return direction === 0 ? null : { type: "nudge", id: deck, direction };
+  if (direction === 0) return null;
+  if (touched) {
+    return { type: "scratchTick", id: deck, delta: direction * 0.0035 };
+  }
+  return { type: "nudge", id: deck, direction };
 }
 
 /**

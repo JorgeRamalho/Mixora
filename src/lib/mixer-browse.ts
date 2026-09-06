@@ -1,4 +1,44 @@
-import type { MixerSnapshot } from "../types/mixer";
+import type { BrowseSource, MixerSnapshot } from "../types/mixer";
+import type { BrowseTrackItem, DeckId } from "../types/mixer";
+import type { LibraryTrack } from "./tracks-api/types";
+import type { CamelotFilterMode } from "./tracks-api/types";
+import { matchesCamelotFilter } from "./musical-key";
+
+export type DeckKeyFilters = Record<DeckId, string | null>;
+
+/** Filtros Camelot vazios para cada deck da cabine. */
+export const EMPTY_DECK_KEY_FILTERS: DeckKeyFilters = { a: null, b: null };
+
+/**
+ * Filtra a biblioteca pelo tom Camelot de um deck, sem afetar o outro lado.
+ *
+ * @param catalog Lista completa da fonte ativa.
+ * @param keyFilter Tom escolhido no picker do deck, ou null para listar tudo.
+ * @param mode Modo exato ou compatível do filtro Camelot.
+ */
+export function filterBrowseTracks(
+  catalog: readonly BrowseTrackItem[],
+  keyFilter: string | null,
+  mode: CamelotFilterMode,
+): readonly BrowseTrackItem[] {
+  if (!keyFilter) return catalog;
+  return catalog.filter((track) => matchesCamelotFilter(track.key, keyFilter, mode));
+}
+
+/**
+ * Converte uma linha da API remota no item usado pelas playlists laterais.
+ *
+ * @param track Faixa retornada pelo MusicDiscover.
+ */
+export function mapRemoteBrowseTrack(track: LibraryTrack): BrowseTrackItem {
+  return {
+    id: track.track_id,
+    title: track.title,
+    artist: track.artists,
+    bpm: track.bpm,
+    key: track.camelot ?? track.key,
+  };
+}
 
 /**
  * Prende o cursor da biblioteca dentro da lista dando a volta nas pontas.
@@ -72,4 +112,29 @@ export function createBrowseState(options: {
       return masterTrackIndex(snapshot(), ids);
     },
   };
+}
+
+/**
+ * Lê a fonte do browse persistida na sessão. Sem valor, a cabine nasce em local.
+ */
+export function loadBrowseSource(): BrowseSource {
+  if (typeof sessionStorage === "undefined") return "local";
+  try {
+    return sessionStorage.getItem("mamute.browse.source") === "remote" ? "remote" : "local";
+  } catch {
+    return "local";
+  }
+}
+
+/**
+ * Grava a fonte do browse para o toggle sobreviver a um reload da página.
+ *
+ * @param source Fonte escolhida no chip.
+ */
+export function saveBrowseSource(source: BrowseSource): void {
+  try {
+    sessionStorage.setItem("mamute.browse.source", source);
+  } catch {
+    return;
+  }
 }

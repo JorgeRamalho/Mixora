@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { deckFileInputId } from "../../lib/deck-file-picker";
 import type { DeckId } from "../../types/mixer";
 
 /**
@@ -17,8 +18,9 @@ export const DeckFileInput = forwardRef<
   return (
     <input
       ref={ref}
+      id={deckFileInputId(id)}
       type="file"
-      hidden
+      className="mixer-deck-file-input"
       accept="audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg"
       data-deck-file={id}
       tabIndex={-1}

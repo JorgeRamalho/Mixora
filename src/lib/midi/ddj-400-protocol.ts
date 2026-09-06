@@ -105,6 +105,8 @@ export const DECK_NOTE = {
   loopIn: 0x10,
   loopOut: 0x11,
   reloop: 0x4d,
+  loopHalve: 0x51,
+  loopDouble: 0x53,
   jogTouch: 0x36,
   shift: 0x3f,
   pfl: 0x54,
@@ -114,6 +116,12 @@ export const DECK_NOTE = {
 
 /** Primeira note do modo Hot Cue, já que os pads ocupam notes consecutivas. */
 export const HOT_CUE_FIRST_NOTE = 0x00;
+
+/** Primeira note do modo Beat Jump na faixa de pads. */
+export const BEAT_JUMP_FIRST_NOTE = 0x20;
+
+/** Primeira note do modo Beat Loop na faixa de pads. */
+export const BEAT_LOOP_FIRST_NOTE = 0x60;
 
 /** Pads por deck no hardware. O engine só tem 4 slots de hot cue. */
 export const PAD_COUNT = 8;
@@ -205,10 +213,8 @@ export function bipolarUnit14Bit(msb: number, lsb: number): number {
 /**
  * Converte o tempo fader num valor bipolar de −1 a 1, com zero no detent.
  *
- * O fader é invertido, porque o topo manda 0 e o fundo manda 0x3FFF, e por isso
- * a conta subtrai em vez de somar. Além disso o divisor é o centro 0x2000, e
- * não o máximo 0x3FFF, senão o detent marcaria metade do range em vez de zero.
- * Quem multiplica pelo range de pitch da UI é o mapper.
+ * Mantido para documentar a curva invertida do hardware. O pitch da cabine usa
+ * `bipolarUnit14Bit`, porque na DDJ-400 o topo diminui o tempo.
  *
  * @param msb Byte mais significativo, de 0 a 127.
  * @param lsb Byte menos significativo, de 0 a 127.

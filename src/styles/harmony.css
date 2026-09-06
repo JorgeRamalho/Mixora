@@ -148,6 +148,23 @@
   touch-action: pan-y;
 }
 
+.camelot-scene--flat .camelot-gyro {
+  perspective: none;
+  touch-action: manipulation;
+}
+
+.camelot-scene--flat .camelot-rig,
+.camelot-scene--flat .camelot-layer-b,
+.camelot-scene--flat .camelot-layer-a,
+.camelot-scene--flat .camelot-layer-hub,
+.camelot-scene--flat .camelot-glass,
+.camelot-scene--flat .camelot-halo,
+.camelot-scene--flat .camelot-orbit {
+  transform: none !important;
+  filter: none;
+  animation: none;
+}
+
 .camelot-gyro:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 70%, white);
   border-radius: 18px;

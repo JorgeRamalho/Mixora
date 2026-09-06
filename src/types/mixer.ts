@@ -2,6 +2,18 @@ export type DeckId = "a" | "b";
 
 export type JogMode = "vinyl" | "cdj";
 
+/** Fonte da lista do encoder BROWSE e do LOAD. */
+export type BrowseSource = "local" | "remote";
+
+/** Item leve usado no select do deck e no encoder BROWSE. */
+export interface BrowseTrackItem {
+  id: string;
+  title: string;
+  artist: string;
+  bpm: number | null;
+  key: string | null;
+}
+
 export interface TrainingTrack {
   id: string;
   title: string;
@@ -35,12 +47,6 @@ export interface DeckEq {
   low: number;
 }
 
-export interface DeckEqKill {
-  high: boolean;
-  mid: boolean;
-  low: boolean;
-}
-
 export interface DeckLoop {
   active: boolean;
   inBeat: number | null;
@@ -54,7 +60,6 @@ export interface DeckState {
   gain: number;
   trim: number;
   eq: DeckEq;
-  eqKill: DeckEqKill;
   filter: number;
   sync: boolean;
   masterTempo: boolean;
@@ -80,6 +85,8 @@ export interface DeckFileMeta {
   bpm?: number;
   key?: string;
   durationSec: number;
+  /** Picos V8 do backend; se ausente, o engine calcula do buffer. */
+  peaks?: Float32Array | null;
 }
 
 export interface MixerSnapshot {
@@ -89,6 +96,8 @@ export interface MixerSnapshot {
   master: number;
   booth: number;
   cueMix: number;
+  /** Roteia o master para o fone, como o botão MASTER CUE da Pioneer. */
+  masterCue: boolean;
   masterDeck: DeckId;
 }
 
@@ -105,7 +114,8 @@ export interface MixerSnapshot {
  *
  * As três ações de browser são intenção por um motivo diferente dos toggles.
  * Elas não dependem do snapshot: `browseMove` e `browseHome` mexem no cursor da
- * biblioteca, e `browseLoad` abre o seletor de arquivo do deck indicado.
+ * biblioteca, e `browseLoad` abre o seletor de arquivo no modo local, ou carrega
+ * o stream remoto quando a fonte do browse é a API.
  *
  * Union aberto: um `type` novo exige case em `applyAbsoluteAction` ou
  * `resolveMixerAction`, e uma linha em `MIXER_ACTION_ROUTES` (ver
@@ -119,11 +129,12 @@ export type MixerAction =
   | { type: "trim"; id: DeckId; value: number }
   | { type: "filter"; id: DeckId; value: number }
   | { type: "eq"; id: DeckId; band: "high" | "mid" | "low"; value: number }
-  | { type: "eqKill"; id: DeckId; band: "high" | "mid" | "low"; value: boolean }
   | { type: "xf"; value: number }
   | { type: "master"; value: number }
   | { type: "booth"; value: number }
   | { type: "cueMix"; value: number }
+  | { type: "masterCue"; value: boolean }
+  | { type: "toggleMasterCue" }
   | { type: "sync"; id: DeckId; value: boolean }
   | { type: "toggleSync"; id: DeckId }
   | { type: "masterDeck"; id: DeckId }
@@ -139,6 +150,15 @@ export type MixerAction =
   | { type: "toggleLoop"; id: DeckId }
   | { type: "loopOn"; id: DeckId }
   | { type: "loopOff"; id: DeckId }
+  | { type: "setLoopIn"; id: DeckId }
+  | { type: "setLoopOut"; id: DeckId }
+  | { type: "loopHalve"; id: DeckId }
+  | { type: "loopDouble"; id: DeckId }
+  | { type: "setBeatLoop"; id: DeckId; beats: number }
+  | { type: "jumpBeats"; id: DeckId; beats: number }
+  | { type: "scratchBegin"; id: DeckId }
+  | { type: "scratchTick"; id: DeckId; delta: number }
+  | { type: "scratchEnd"; id: DeckId }
   | { type: "hotCue"; id: DeckId; slot: number }
   | { type: "triggerHotCue"; id: DeckId; slot: number }
   | { type: "hotCuePad"; id: DeckId; slot: number }
@@ -148,4 +168,5 @@ export type MixerAction =
   | { type: "browseHome" }
   | { type: "requestDeckLoad"; id: DeckId; source?: "file" | "library" }
   | { type: "loadDeckFile"; id: DeckId; file: File }
+  | { type: "loadRemoteTrack"; id: DeckId; trackId: string }
   | { type: "setDeckMeta"; id: DeckId; bpm?: number; key?: string; title?: string };

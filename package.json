@@ -38,6 +38,7 @@
   "dependencies": {
     "@netlify/database": "^2.0.0",
     "@netlify/functions": "^6.0.0",
+    "@tanstack/react-query": "^5.102.8",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^1.0.0-beta.22",
     "react": "^19.2.8",

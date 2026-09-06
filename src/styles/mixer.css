@@ -1,23 +1,355 @@
+.mixer-deck-file-input {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  opacity: 0.01;
+  overflow: hidden;
+}
+
 .mixer-cabinet {
   display: grid;
   gap: 1rem;
-  perspective: 1400px;
-  perspective-origin: 50% 20%;
+  width: 100%;
+  min-width: 0;
+}
+
+.page--mixer {
+  width: min(var(--mixer-layout-max), calc(100% - 2 * var(--layout-gutter)));
+  max-width: 100%;
+}
+
+.page--mixer-copy {
+  max-width: 42rem;
+  margin-top: 1.35rem;
 }
 
 .mixer-cabinet-head {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.55rem 1rem;
+  margin-bottom: 0.15rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
 }
 
-.mixer-cabinet-note {
+.mixer-board-message {
+  flex: 1 1 100%;
+  margin: 0;
   color: var(--muted);
-  line-height: 1.5;
-  font-size: 0.88rem;
-  max-width: 42rem;
+  line-height: 1.45;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.mixer-board-message--pending {
+  color: var(--cyan-hot);
+}
+
+.mixer-board-message--error {
+  color: color-mix(in srgb, var(--danger) 75%, white);
+}
+
+.mixer-stage {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --glint-x: 42%;
+  --glint-y: 12%;
+  display: grid;
+  grid-template-columns: minmax(12.5rem, 1.12fr) minmax(0, 2.85fr) minmax(12.5rem, 1.12fr);
+  align-items: stretch;
+  gap: 1rem var(--mixer-stage-gap);
+  width: 100%;
+  min-width: 0;
+  perspective: 1480px;
+  perspective-origin: 50% 32%;
+  transform-style: preserve-3d;
+  transform: perspective(1280px) rotateX(calc(0.8deg + var(--tilt-x, 0deg)))
+    rotateY(var(--tilt-y, 0deg));
+  transition: box-shadow 0.3s ease;
+}
+
+.deck-playlist {
+  --camelot-color: #8b8fa8;
+  --side-z: 6px;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(76vh, 54rem);
+  gap: 0.5rem;
+  padding: 0.75rem 0.7rem 0.8rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--camelot-color) 38%, var(--line));
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--camelot-color) 16%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--camelot-color) 10%, #04060b), #04060b 72%);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px color-mix(in srgb, var(--camelot-color) 12%, transparent),
+    0 0 22px color-mix(in srgb, var(--camelot-color) 14%, transparent),
+    0 16px 34px rgba(0, 0, 0, 0.42);
+  transform-style: preserve-3d;
+  transform: translateZ(var(--side-z));
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.deck-playlist[data-side="left"],
+.deck-playlist[data-side="right"] {
+  --side-z: 6px;
+}
+
+.deck-playlist[data-deck="a"] {
+  border-color: color-mix(in srgb, var(--camelot-color) 42%, var(--cyan) 18%);
+}
+
+.deck-playlist[data-deck="b"] {
+  border-color: color-mix(in srgb, var(--camelot-color) 42%, var(--magenta) 18%);
+}
+
+.deck-playlist::before {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  left: 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white 12%),
+    var(--camelot-color),
+    color-mix(in srgb, var(--camelot-color) 72%, black 18%)
+  );
+  box-shadow: 0 0 16px color-mix(in srgb, var(--camelot-color) 48%, transparent);
+  z-index: 2;
+}
+
+.deck-playlist[data-side="right"]::before {
+  left: auto;
+  right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
+.deck-playlist::after {
+  content: "";
+  position: absolute;
+  inset: auto 10% -8px;
+  height: 12px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--camelot-color) 28%, transparent), transparent 72%);
+  filter: blur(6px);
+  transform: translateZ(-6px);
+}
+
+.deck-playlist-glint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%);
+  opacity: 0.45;
+  z-index: 1;
+}
+
+.deck-playlist-head {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 0.18rem;
+  padding-inline: 0.35rem 0.2rem;
+}
+
+.deck-playlist-tag {
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--camelot-color) 78%, white);
+}
+
+.deck-playlist-source {
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.deck-playlist-list {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 0.32rem;
+  margin: 0;
+  padding: 0.2rem 0.12rem 0.12rem;
+  list-style: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--camelot-color) 45%, transparent) transparent;
+}
+
+.deck-playlist-empty {
+  padding: 0.55rem 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.deck-playlist-item {
+  --track-key-color: #8b8fa8;
+  display: grid;
+  grid-template-columns: 2.35rem 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.48rem 0.45rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.deck-playlist-item:hover {
+  border-color: color-mix(in srgb, var(--track-key-color) 38%, var(--line));
+  background: color-mix(in srgb, var(--track-key-color) 8%, rgba(0, 0, 0, 0.28));
+}
+
+.deck-playlist-item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  outline-offset: 1px;
+}
+
+.deck-playlist-item[data-browse-focus="true"] {
+  border-color: color-mix(in srgb, var(--camelot-color) 52%, var(--line));
+  background:
+    radial-gradient(120% 140% at 0% 50%, color-mix(in srgb, var(--camelot-color) 14%, transparent), transparent 62%),
+    rgba(0, 0, 0, 0.32);
+  box-shadow:
+    inset 0 0 18px color-mix(in srgb, var(--camelot-color) 10%, transparent),
+    0 0 14px color-mix(in srgb, var(--camelot-color) 18%, transparent);
+}
+
+.deck-playlist-item[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--track-key-color) 62%, white 8%);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--track-key-color) 18%, transparent), transparent 72%),
+    rgba(0, 0, 0, 0.38);
+  box-shadow:
+    inset 0 0 20px color-mix(in srgb, var(--track-key-color) 14%, transparent),
+    0 0 12px color-mix(in srgb, var(--track-key-color) 22%, transparent);
+}
+
+.deck-playlist-item-key {
+  display: grid;
+  place-items: center;
+  min-height: 1.65rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--track-key-color) 48%, var(--line));
+  background: color-mix(in srgb, var(--track-key-color) 14%, #04060b);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--track-key-color) 28%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--track-key-color) 85%, white);
+}
+
+.deck-playlist-item-copy {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.deck-playlist-item-copy strong {
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-playlist-item-copy span {
+  font-size: 0.62rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-playlist-item-bpm {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--track-key-color) 72%, var(--muted));
+  white-space: nowrap;
+}
+
+.deck-playlist[data-browse-key] {
+  border-color: color-mix(in srgb, var(--browse-key-color, var(--amber-hot)) 45%, var(--line));
+}
+
+.deck-playlist--key-flash {
+  animation: deck-playlist-key-flash 0.68s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes deck-playlist-key-flash {
+  0% {
+    box-shadow:
+      inset 0 3px 8px rgba(0, 0, 0, 0.65),
+      inset 0 0 28px color-mix(in srgb, var(--camelot-color) 12%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--browse-key-color, var(--amber-hot)) 0%, transparent);
+  }
+  28% {
+    box-shadow:
+      inset 0 3px 8px rgba(0, 0, 0, 0.65),
+      inset 0 0 28px color-mix(in srgb, var(--camelot-color) 12%, transparent),
+      0 0 0 3px color-mix(in srgb, var(--browse-key-color, var(--amber-hot)) 38%, transparent),
+      0 0 28px color-mix(in srgb, var(--browse-key-color, var(--amber-hot)) 42%, transparent);
+  }
+  100% {
+    box-shadow:
+      inset 0 3px 8px rgba(0, 0, 0, 0.65),
+      inset 0 0 28px color-mix(in srgb, var(--camelot-color) 12%, transparent),
+      0 0 22px color-mix(in srgb, var(--camelot-color) 14%, transparent);
+  }
+}
+
+.cdj-load-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cdj-load-row .cdj-btn--load {
+  width: 100%;
 }
 
 /*
@@ -185,35 +517,112 @@
   color: var(--muted);
 }
 
+.mixer-browse-chip[data-loading="true"] .mixer-browse-title {
+  color: var(--muted);
+}
+
+.mixer-browse-source {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.18rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, #0c121c 82%, black);
+}
+
+.mixer-browse-source-btn {
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mixer-browse-source-btn[data-active="true"] {
+  background: color-mix(in srgb, var(--cyan) 18%, transparent);
+  color: var(--cyan-hot);
+}
+
+.cdj-remote-load {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.65rem;
+  margin: 0.35rem 0 0;
+  color: var(--cyan-hot);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+}
+
+.cdj-deck[data-loading="true"] {
+  outline: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent);
+}
+
+.cdj-remote-retry {
+  margin: 0;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line));
+  background: color-mix(in srgb, var(--cyan) 12%, transparent);
+  color: var(--cyan-hot);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 .mixer-board {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
+  flex: none;
+  min-width: 0;
+  width: 100%;
+  --camelot-a: #8b8fa8;
+  --camelot-b: #8b8fa8;
   --glint-x: 38%;
   --glint-y: 6%;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.68fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(200px, 0.72fr) minmax(0, 1.15fr);
   align-items: start;
-  gap: 0.75rem;
-  padding: 1rem 0.85rem 1.15rem;
+  gap: 0.65rem;
+  padding: 0.9rem 0.75rem 1rem;
   border-radius: 28px;
   isolation: isolate;
   transform-style: preserve-3d;
-  transform: perspective(1180px) rotateX(calc(2.5deg + var(--tilt-x))) rotateY(var(--tilt-y));
+  transform: translateZ(4px);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 78%, white);
+  border: 1px solid color-mix(in srgb, var(--camelot-a) 22%, var(--camelot-b) 22%, var(--line-strong));
   background:
-    radial-gradient(circle at var(--glint-x) var(--glint-y), rgba(255, 255, 255, 0.12), transparent 44%),
-    linear-gradient(180deg, rgba(0, 232, 255, 0.1), transparent 24%),
+    radial-gradient(circle at var(--glint-x) var(--glint-y), rgba(255, 255, 255, 0.1), transparent 44%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--camelot-a) 14%, transparent) 0%,
+      color-mix(in srgb, var(--camelot-a) 6%, transparent) 30%,
+      transparent 50%,
+      color-mix(in srgb, var(--camelot-b) 6%, transparent) 70%,
+      color-mix(in srgb, var(--camelot-b) 14%, transparent) 100%
+    ),
     linear-gradient(180deg, #1a2230 0%, #121824 38%, #0a0e16 62%, #0c0814 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -18px 28px rgba(0, 0, 0, 0.42),
+    inset 56px 0 64px -32px color-mix(in srgb, var(--camelot-a) 12%, transparent),
+    inset -56px 0 64px -32px color-mix(in srgb, var(--camelot-b) 12%, transparent),
     0 28px 60px rgba(0, 0, 0, 0.55),
-    0 0 48px rgba(0, 232, 255, 0.08);
+    0 0 40px color-mix(in srgb, var(--camelot-a) 8%, var(--camelot-b) 8%, transparent);
   transition:
-    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.24s ease;
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
 }
 
 .mixer-board::before {
@@ -225,13 +634,14 @@
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in srgb, var(--cyan) 65%, white),
-    color-mix(in srgb, var(--violet) 55%, white),
-    color-mix(in srgb, var(--magenta) 50%, white),
+    color-mix(in srgb, var(--camelot-a) 65%, white),
+    color-mix(in srgb, var(--camelot-a) 35%, var(--camelot-b) 35%, white),
+    color-mix(in srgb, var(--camelot-b) 65%, white),
     transparent
   );
-  opacity: 0.75;
+  opacity: 0.85;
   z-index: 2;
+  transition: background 0.35s ease;
 }
 
 .mixer-board::after {
@@ -250,8 +660,12 @@
 }
 
 .cdj-deck {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
+  --camelot-color: #8b8fa8;
+  --cdj-edge: color-mix(in srgb, var(--camelot-color) 38%, var(--line));
+  --cdj-edge-soft: color-mix(in srgb, var(--camelot-color) 24%, var(--line));
+  --cdj-edge-strong: color-mix(in srgb, var(--camelot-color) 52%, var(--line));
+  --cdj-glow: color-mix(in srgb, var(--camelot-color) 18%, transparent);
+  --cdj-glow-strong: color-mix(in srgb, var(--camelot-color) 34%, transparent);
   --glint-x: 42%;
   --glint-y: 8%;
   position: relative;
@@ -259,24 +673,27 @@
   gap: 0.65rem;
   padding: 0.85rem;
   border-radius: 22px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--cdj-edge);
   transform-style: preserve-3d;
-  transform: perspective(980px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(14px);
+  transform: translateZ(8px);
   background:
     radial-gradient(480px circle at var(--glint-x) var(--glint-y), rgba(255, 255, 255, 0.09), transparent 48%),
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--camelot-color) 8%, transparent), transparent 62%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 34%),
     linear-gradient(165deg, #101722, #080b12 72%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 0 -14px 22px rgba(0, 0, 0, 0.38),
+    inset 0 0 32px var(--cdj-glow),
     0 18px 34px rgba(0, 0, 0, 0.42),
+    0 0 28px var(--cdj-glow),
     0 2px 0 rgba(255, 255, 255, 0.04);
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s ease;
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
 }
 
 .cdj-deck::before {
@@ -285,8 +702,10 @@
   inset: 6px;
   border-radius: 18px;
   pointer-events: none;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  border: 1px solid color-mix(in srgb, var(--camelot-color) 16%, rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 0 18px var(--cdj-glow);
 }
 
 .cdj-deck::after {
@@ -299,14 +718,6 @@
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
   filter: blur(4px);
   transform: translateZ(-8px);
-}
-
-.cdj-deck[data-deck="a"] {
-  border-color: color-mix(in srgb, var(--cyan) 35%, var(--line));
-}
-
-.cdj-deck[data-deck="b"] {
-  border-color: color-mix(in srgb, var(--magenta) 35%, var(--line));
 }
 
 .cdj-deck-top {
@@ -347,9 +758,10 @@
   letter-spacing: 0.1em;
   padding: 0.2rem 0.35rem;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--cdj-edge-soft);
   color: var(--muted);
   background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .cdj-status-leds span[data-on="true"] {
@@ -363,31 +775,77 @@
   position: relative;
   display: grid;
   gap: 0.55rem;
-  padding: 0.75rem;
+  padding: 0.75rem 0.9rem;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--line) 80%, white 8%);
+  border: 1px solid color-mix(in srgb, var(--camelot-color) 38%, var(--line));
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
-    linear-gradient(180deg, rgba(0, 232, 255, 0.05), transparent),
-    #04060b;
+    radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--camelot-color) 16%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--camelot-color) 10%, #04060b), #04060b 72%);
   box-shadow:
     inset 0 3px 8px rgba(0, 0, 0, 0.65),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 28px color-mix(in srgb, var(--camelot-color) 12%, transparent),
+    0 0 22px color-mix(in srgb, var(--camelot-color) 14%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.05);
   transform: translateZ(8px);
+  isolation: isolate;
+}
+
+.cdj-display::before {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  left: 0;
+  width: 5px;
+  border-radius: 0 4px 4px 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white 12%),
+    var(--camelot-color),
+    color-mix(in srgb, var(--camelot-color) 72%, black 18%)
+  );
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--camelot-color) 48%, transparent),
+    inset -1px 0 0 rgba(255, 255, 255, 0.12);
+  z-index: 2;
 }
 
 .cdj-display::after {
   content: "";
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  right: 0;
+  width: 5px;
+  border-radius: 4px 0 0 4px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white 12%),
+    var(--camelot-color),
+    color-mix(in srgb, var(--camelot-color) 72%, black 18%)
+  );
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--camelot-color) 48%, transparent),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12);
+  z-index: 2;
+}
+
+.cdj-display-glint {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%);
   opacity: 0.45;
+  z-index: 1;
 }
 
 .cdj-track-meta {
+  position: relative;
+  z-index: 3;
   display: grid;
   gap: 0.08rem;
   min-width: 0;
@@ -409,14 +867,12 @@
 }
 
 .cdj-genre {
-  color: color-mix(in srgb, var(--cyan) 70%, white) !important;
-}
-
-.cdj-deck[data-deck="b"] .cdj-genre {
-  color: color-mix(in srgb, var(--magenta) 70%, white) !important;
+  color: color-mix(in srgb, var(--camelot-color) 78%, white) !important;
 }
 
 .cdj-metrics {
+  position: relative;
+  z-index: 3;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.45rem;
@@ -427,12 +883,19 @@
   gap: 0.08rem;
   padding: 0.45rem 0.5rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--cdj-edge);
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--camelot-color) 10%, transparent), transparent 58%),
+    rgba(255, 255, 255, 0.02);
   box-shadow:
     inset 0 2px 5px rgba(0, 0, 0, 0.35),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 16px var(--cdj-glow);
   transform: translateZ(4px);
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
 }
 
 .cdj-metric-label {
@@ -459,24 +922,130 @@
   text-overflow: ellipsis;
 }
 
-.cdj-deck[data-deck="a"] .cdj-metric--bpm .cdj-metric-value {
-  color: var(--cyan-hot);
+.cdj-metric--bpm .cdj-metric-value,
+.cdj-metric--key .cdj-metric-value {
+  color: var(--camelot-color);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--camelot-color) 42%, transparent);
 }
 
-.cdj-deck[data-deck="b"] .cdj-metric--bpm .cdj-metric-value {
-  color: var(--magenta-hot);
+button.cdj-metric--key {
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--cdj-edge);
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--camelot-color) 10%, transparent), transparent 58%),
+    rgba(255, 255, 255, 0.02);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 16px var(--cdj-glow);
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.18s ease,
+    background 0.35s ease;
 }
 
-.cdj-metric--key[data-harmony="perfect"] .cdj-metric-value {
-  color: var(--lime);
+button.cdj-metric--key:hover {
+  border-color: var(--cdj-edge-strong);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 20px var(--cdj-glow-strong);
 }
 
-.cdj-metric--key[data-harmony="compatible"] .cdj-metric-value {
-  color: var(--amber-hot);
+button.cdj-metric--key:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  outline-offset: 2px;
 }
 
-.cdj-metric--key[data-harmony="shift"] .cdj-metric-value {
-  color: var(--danger);
+button.cdj-metric--key[data-filter-active="true"] {
+  border-color: var(--cdj-edge-strong);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 22px var(--cdj-glow-strong);
+}
+
+.cdj-camelot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+.cdj-camelot-backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  pointer-events: auto;
+  cursor: pointer;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.cdj-camelot-popover {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 24rem);
+  max-height: min(92vh, 36rem);
+  overflow: visible;
+  pointer-events: auto;
+  border-radius: calc(var(--radius) + 6px);
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.58),
+    0 0 48px color-mix(in srgb, var(--key-color) 22%, transparent);
+}
+
+.cdj-camelot-popover .camelot-scene {
+  padding: 0;
+}
+
+.cdj-camelot-popover .camelot-chassis {
+  padding: 0.55rem 0.6rem 0.85rem;
+}
+
+.cdj-camelot-popover .camelot-telemetry,
+.cdj-camelot-popover .camelot-wheel-legend {
+  display: none;
+}
+
+.cdj-camelot-popover .camelot-gyro {
+  width: 100%;
+  max-width: 18.5rem;
+  margin-inline: auto;
+}
+
+.cdj-camelot-popover .camelot-rig {
+  transform: none;
+  transform-origin: center center;
+}
+
+.cdj-camelot-popover .camelot-layer-b,
+.cdj-camelot-popover .camelot-layer-a,
+.cdj-camelot-popover .camelot-layer-hub,
+.cdj-camelot-popover .camelot-glass {
+  transform: none;
+  filter: none;
+}
+
+.cdj-camelot-popover .camelot-sector {
+  stroke-width: 1.4;
+}
+
+.cdj-camelot-popover .camelot-gyro {
+  touch-action: manipulation;
 }
 
 .cdj-phase-ring {
@@ -485,68 +1054,63 @@
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: conic-gradient(from calc(var(--phase, 0) * 360deg), var(--cyan), transparent 55%);
-}
-
-.cdj-deck[data-deck="b"] .cdj-phase-ring {
-  background: conic-gradient(from calc(var(--phase, 0) * 360deg), var(--magenta), transparent 55%);
+  border: 1px solid color-mix(in srgb, var(--camelot-color) 38%, var(--line));
+  background: conic-gradient(
+    from calc(var(--phase, 0) * 360deg),
+    var(--camelot-color),
+    transparent 55%
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--camelot-color) 28%, transparent);
 }
 
 .cdj-phase-dot {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-}
-
-.cdj-track-select {
-  display: grid;
-  gap: 0.2rem;
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.cdj-track-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.45rem;
-  align-items: end;
+  background: var(--camelot-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--camelot-color) 72%, white);
 }
 
 .cdj-btn--load {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   height: 2.35rem;
   padding: 0 0.75rem;
   font-size: 0.68rem;
   letter-spacing: 0.12em;
+  cursor: pointer;
+  border-color: var(--cdj-edge-strong);
+  box-shadow: 0 0 12px var(--cdj-glow);
 }
 
-.cdj-track-select select {
+.cdj-btn-file-input {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: #0a1018;
-  color: var(--text);
-  padding: 0.45rem 0.55rem;
-  font-family: var(--font-body);
-  font-size: 0.82rem;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 1rem;
 }
 
 .cdj-wave {
   width: 100%;
   height: 72px;
   border-radius: 10px;
-  border: 2px solid #05080f;
-  outline: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border: 2px solid color-mix(in srgb, var(--camelot-color) 28%, #05080f);
+  outline: 1px solid var(--cdj-edge-soft);
   box-shadow:
     inset 0 4px 12px rgba(0, 0, 0, 0.72),
     inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 0 16px var(--cdj-glow),
     0 6px 14px rgba(0, 0, 0, 0.35);
   transform: translateZ(6px);
+  transition: border-color 0.35s ease, outline-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .cdj-transport-primary {
@@ -554,31 +1118,17 @@
   gap: 0.45rem;
   padding: 0.7rem 0.65rem 0.75rem;
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 55%, white 10%);
+  border: 1px solid var(--cdj-edge-strong);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 42%),
     rgba(0, 0, 0, 0.28);
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.1),
     inset 0 -12px 18px rgba(0, 0, 0, 0.35),
+    0 0 28px var(--cdj-glow),
     0 16px 28px rgba(0, 0, 0, 0.32);
   transform: translateZ(10px);
-}
-
-.cdj-deck[data-deck="a"] .cdj-transport-primary {
-  border-color: color-mix(in srgb, var(--cyan) 42%, var(--line));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 28px rgba(0, 232, 255, 0.1),
-    0 14px 32px rgba(0, 0, 0, 0.28);
-}
-
-.cdj-deck[data-deck="b"] .cdj-transport-primary {
-  border-color: color-mix(in srgb, var(--magenta) 42%, var(--line));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 28px rgba(255, 45, 149, 0.1),
-    0 14px 32px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .cdj-transport-label {
@@ -587,12 +1137,8 @@
   font-size: 0.52rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--cyan) 70%, white);
+  color: color-mix(in srgb, var(--camelot-color) 72%, white);
   text-align: center;
-}
-
-.cdj-deck[data-deck="b"] .cdj-transport-label {
-  color: color-mix(in srgb, var(--magenta) 70%, white);
 }
 
 .cdj-transport {
@@ -604,7 +1150,7 @@
 .cdj-btn {
   min-width: 0;
   border-radius: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--cdj-edge-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
   color: var(--text);
   font-family: var(--font-mono);
@@ -708,19 +1254,11 @@
 }
 
 .cdj-btn--sync {
-  color: var(--cyan-hot);
-  border-color: color-mix(in srgb, var(--cyan) 60%, var(--line));
+  color: color-mix(in srgb, var(--camelot-color) 82%, white);
+  border-color: var(--cdj-edge-strong);
   background:
-    linear-gradient(180deg, rgba(0, 232, 255, 0.12), transparent 55%),
+    linear-gradient(180deg, color-mix(in srgb, var(--camelot-color) 14%, transparent), transparent 55%),
     linear-gradient(180deg, #0a1218, #060910);
-}
-
-.cdj-deck[data-deck="b"] .cdj-btn--sync {
-  color: var(--magenta-hot);
-  border-color: color-mix(in srgb, var(--magenta) 60%, var(--line));
-  background:
-    linear-gradient(180deg, rgba(255, 45, 149, 0.12), transparent 55%),
-    linear-gradient(180deg, #120a12, #060910);
 }
 
 .cdj-btn--sync.is-on {
@@ -750,7 +1288,8 @@
 }
 
 .cdj-btn:hover {
-  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
+  border-color: var(--cdj-edge-strong);
+  box-shadow: 0 0 14px var(--cdj-glow);
 }
 
 .cdj-btn:active {
@@ -816,8 +1355,6 @@
 }
 
 .cdj-jog {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
   --glint-x: 34%;
   --glint-y: 28%;
   position: relative;
@@ -825,7 +1362,7 @@
   max-width: var(--cdj-jog-size);
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 12px solid #141c28;
+  border: 12px solid color-mix(in srgb, var(--camelot-color) 32%, #141c28);
   overflow: hidden;
   background:
     radial-gradient(circle at var(--glint-x) var(--glint-y), rgba(255, 255, 255, 0.22), transparent 32%),
@@ -835,12 +1372,14 @@
     inset 0 14px 22px rgba(255, 255, 255, 0.1),
     inset 0 -20px 30px rgba(0, 0, 0, 0.62),
     0 20px 0 #060910,
-    0 28px 36px rgba(0, 0, 0, 0.5);
-  transform: perspective(820px) rotateX(calc(18deg + var(--tilt-x))) rotateY(var(--tilt-y));
+    0 28px 36px rgba(0, 0, 0, 0.5),
+    0 0 24px var(--cdj-glow-strong),
+    0 0 0 2px color-mix(in srgb, var(--camelot-color) 42%, transparent);
+  transform: perspective(820px) rotateX(18deg);
   transform-style: preserve-3d;
   touch-action: none;
   cursor: grab;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .cdj-jog::before {
@@ -857,26 +1396,6 @@
   animation: cdj-jog-texture-spin 1.6s linear infinite;
 }
 
-.cdj-deck[data-deck="a"] .cdj-jog {
-  box-shadow:
-    inset 0 14px 22px rgba(255, 255, 255, 0.1),
-    inset 0 -20px 30px rgba(0, 0, 0, 0.62),
-    0 20px 0 #060910,
-    0 28px 36px rgba(0, 0, 0, 0.5),
-    0 0 24px rgba(0, 232, 255, 0.18),
-    0 0 0 2px rgba(0, 232, 255, 0.32);
-}
-
-.cdj-deck[data-deck="b"] .cdj-jog {
-  box-shadow:
-    inset 0 14px 22px rgba(255, 255, 255, 0.1),
-    inset 0 -20px 30px rgba(0, 0, 0, 0.62),
-    0 20px 0 #060910,
-    0 28px 36px rgba(0, 0, 0, 0.5),
-    0 0 24px rgba(255, 45, 149, 0.18),
-    0 0 0 2px rgba(255, 45, 149, 0.32);
-}
-
 .cdj-jog-cap {
   position: absolute;
   inset: 27%;
@@ -884,10 +1403,11 @@
   border-radius: 50%;
   background:
     radial-gradient(circle at 35% 32%, #4a5d78, #070a10 62%);
-  border: 1px solid var(--line);
+  border: 1px solid var(--cdj-edge-soft);
   box-shadow:
     inset 0 6px 12px rgba(255, 255, 255, 0.1),
     inset 0 -8px 14px rgba(0, 0, 0, 0.55),
+    0 0 12px var(--cdj-glow),
     0 4px 8px rgba(0, 0, 0, 0.35);
   transform: translateZ(6px);
 }
@@ -897,7 +1417,7 @@
   inset: 8%;
   z-index: 1;
   border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed color-mix(in srgb, var(--camelot-color) 36%, rgba(255, 255, 255, 0.12));
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
@@ -918,7 +1438,7 @@
 .cdj-jog-mode {
   padding: 0.3rem 0.7rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--cdj-edge-soft);
   background: rgba(0, 0, 0, 0.32);
   color: var(--muted);
   font-family: var(--font-mono);
@@ -931,7 +1451,8 @@
 
 .cdj-jog-mode:hover {
   color: var(--fg);
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--cdj-edge-strong);
+  box-shadow: 0 0 12px var(--cdj-glow);
 }
 
 .cdj-jog-mode.is-on {
@@ -939,6 +1460,40 @@
   border-color: transparent;
   background: linear-gradient(180deg, #ffe08a, #f2b53c);
   box-shadow: 0 0 12px rgba(242, 181, 60, 0.35);
+}
+
+.cdj-pads {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.cdj-performance-pad {
+  min-height: 2.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--cdj-edge-soft);
+  background: rgba(8, 12, 20, 0.88);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.cdj-performance-pad:hover {
+  color: var(--fg);
+  border-color: var(--cdj-edge-strong);
+  box-shadow: 0 0 12px var(--cdj-glow);
+}
+
+.cdj-performance-pad.is-set {
+  color: #07101a;
+  border-color: color-mix(in srgb, var(--camelot-color) 72%, white 8%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--camelot-color) 82%, white), var(--camelot-color));
+  box-shadow: 0 0 14px var(--cdj-glow-strong);
 }
 
 .cdj-pitch {
@@ -950,7 +1505,7 @@
   min-width: 2.55rem;
   padding: 0.4rem 0.28rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--cdj-edge-soft);
   background: rgba(0, 0, 0, 0.28);
   box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.38);
   font-family: var(--font-mono);
@@ -968,36 +1523,17 @@
   min-width: 0;
   padding: 0.62rem 0.42rem 0.68rem;
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--amber) 38%, var(--line));
+  border: 1px solid var(--cdj-edge-strong);
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 193, 74, 0.14), transparent 58%),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--camelot-color) 14%, transparent), transparent 58%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.34) 72%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -12px 20px rgba(0, 0, 0, 0.42),
-    0 0 28px rgba(255, 193, 74, 0.12),
+    0 0 28px var(--cdj-glow),
     0 10px 22px rgba(0, 0, 0, 0.36);
   transform: translateZ(14px);
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch--hero {
-  border-color: color-mix(in srgb, var(--cyan) 48%, var(--amber) 22%, var(--line));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -12px 20px rgba(0, 0, 0, 0.42),
-    0 0 32px rgba(0, 232, 255, 0.14),
-    0 0 20px rgba(255, 193, 74, 0.1),
-    0 10px 22px rgba(0, 0, 0, 0.36);
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch--hero {
-  border-color: color-mix(in srgb, var(--magenta) 48%, var(--amber) 22%, var(--line));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -12px 20px rgba(0, 0, 0, 0.42),
-    0 0 32px rgba(255, 45, 149, 0.14),
-    0 0 20px rgba(255, 193, 74, 0.1),
-    0 10px 22px rgba(0, 0, 0, 0.36);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .cdj-pitch-label {
@@ -1006,27 +1542,18 @@
   letter-spacing: 0.16em;
   line-height: 1.2;
   text-align: center;
-  color: color-mix(in srgb, var(--amber-hot) 78%, white);
-  text-shadow: 0 0 10px rgba(255, 193, 74, 0.35);
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch-label {
-  color: color-mix(in srgb, var(--cyan-hot) 70%, var(--amber-hot) 30%);
-  text-shadow: 0 0 10px rgba(0, 232, 255, 0.28);
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch-label {
-  color: color-mix(in srgb, var(--magenta-hot) 70%, var(--amber-hot) 30%);
-  text-shadow: 0 0 10px rgba(255, 45, 149, 0.28);
+  color: color-mix(in srgb, var(--camelot-color) 78%, white);
+  text-shadow: 0 0 10px var(--cdj-glow-strong);
 }
 
 .cdj-pitch-slider {
+  position: relative;
   display: grid;
   place-items: center;
   width: 100%;
   padding: 0.35rem 0.5rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--cdj-edge-soft);
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.62)),
     repeating-linear-gradient(
@@ -1041,6 +1568,20 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
+.cdj-pitch-slider::after {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.35rem;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--camelot-color) 42%, white);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
 .cdj-pitch-value {
   min-width: 2.75rem;
   padding: 0.22rem 0.35rem;
@@ -1050,128 +1591,21 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-align: center;
-  color: var(--amber-hot);
-  border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: rgba(255, 193, 74, 0.12);
+  color: color-mix(in srgb, var(--camelot-color) 85%, white);
+  border: 1px solid var(--cdj-edge-strong);
+  background: color-mix(in srgb, var(--camelot-color) 12%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 14px rgba(255, 193, 74, 0.2);
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch-value {
-  color: var(--cyan-hot);
-  border-color: color-mix(in srgb, var(--cyan) 50%, var(--line));
-  background: rgba(0, 232, 255, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 14px rgba(0, 232, 255, 0.22);
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch-value {
-  color: var(--magenta-hot);
-  border-color: color-mix(in srgb, var(--magenta) 50%, var(--line));
-  background: rgba(255, 45, 149, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 14px rgba(255, 45, 149, 0.22);
+    0 0 14px var(--cdj-glow);
 }
 
 .mixer-console input[type="range"] {
-  accent-color: var(--cyan);
   width: 100%;
 }
 
-.cdj-pitch-input {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  height: min(176px, 40vw);
-  width: 28px;
-  margin: 0;
-  accent-color: var(--amber-hot);
-  cursor: ns-resize;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch-input {
-  accent-color: var(--cyan-hot);
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch-input {
-  accent-color: var(--magenta-hot);
-}
-
-.cdj-pitch-input::-webkit-slider-runnable-track {
-  width: 10px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 193, 74, 0.35), rgba(0, 0, 0, 0.65));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch-input::-webkit-slider-runnable-track {
-  background: linear-gradient(180deg, rgba(0, 232, 255, 0.35), rgba(0, 0, 0, 0.65));
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch-input::-webkit-slider-runnable-track {
-  background: linear-gradient(180deg, rgba(255, 45, 149, 0.35), rgba(0, 0, 0, 0.65));
-}
-
-.cdj-pitch-input::-webkit-slider-thumb {
-  width: 26px;
-  height: 16px;
-  margin-left: -8px;
-  border-radius: 5px;
-  border: 2px solid color-mix(in srgb, var(--amber-hot) 70%, white);
-  background: linear-gradient(180deg, #fff8e8, #c9a24a 42%, #6b4f12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 4px 10px rgba(0, 0, 0, 0.45),
-    0 0 12px rgba(255, 193, 74, 0.35);
-  cursor: grab;
-}
-
-.cdj-deck[data-deck="a"] .cdj-pitch-input::-webkit-slider-thumb {
-  border-color: color-mix(in srgb, var(--cyan-hot) 70%, white);
-  background: linear-gradient(180deg, #e8fcff, #3cc8d8 42%, #0a6a78);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 4px 10px rgba(0, 0, 0, 0.45),
-    0 0 12px rgba(0, 232, 255, 0.35);
-}
-
-.cdj-deck[data-deck="b"] .cdj-pitch-input::-webkit-slider-thumb {
-  border-color: color-mix(in srgb, var(--magenta-hot) 70%, white);
-  background: linear-gradient(180deg, #ffe8f4, #ff5ca8 42%, #8a1a52);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 4px 10px rgba(0, 0, 0, 0.45),
-    0 0 12px rgba(255, 45, 149, 0.35);
-}
-
-.cdj-pitch-input:active::-webkit-slider-thumb {
-  cursor: grabbing;
-}
-
-.cdj-pitch-input::-moz-range-track {
-  width: 10px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 193, 74, 0.35), rgba(0, 0, 0, 0.65));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.cdj-pitch-input::-moz-range-thumb {
-  width: 26px;
-  height: 16px;
-  border-radius: 5px;
-  border: 2px solid color-mix(in srgb, var(--amber-hot) 70%, white);
-  background: linear-gradient(180deg, #fff8e8, #c9a24a 42%, #6b4f12);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
-  cursor: grab;
-}
-
 .mixer-console {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
+  --camelot-a: #8b8fa8;
+  --camelot-b: #8b8fa8;
   --glint-x: 50%;
   --glint-y: 10%;
   position: relative;
@@ -1183,30 +1617,161 @@
   overflow: hidden;
   padding: 0.75rem 0.5rem;
   border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--violet) 35%, var(--line));
+  border: none;
   transform-style: preserve-3d;
-  transform: perspective(980px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(22px);
+  transform: translateZ(22px);
   background:
     radial-gradient(420px circle at var(--glint-x) var(--glint-y), rgba(255, 255, 255, 0.08), transparent 50%),
-    linear-gradient(180deg, rgba(139, 124, 255, 0.1), transparent 40%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--camelot-a) 10%, transparent),
+      transparent 50%,
+      color-mix(in srgb, var(--camelot-b) 10%, transparent)
+    ),
     linear-gradient(180deg, #121624, #0a0e16 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 0 -16px 24px rgba(0, 0, 0, 0.4),
-    0 20px 36px rgba(0, 0, 0, 0.42);
+    inset 40px 0 48px -24px color-mix(in srgb, var(--camelot-a) 10%, transparent),
+    inset -40px 0 48px -24px color-mix(in srgb, var(--camelot-b) 10%, transparent),
+    0 20px 36px rgba(0, 0, 0, 0.42),
+    0 0 32px color-mix(in srgb, var(--camelot-a) 14%, transparent),
+    0 0 32px color-mix(in srgb, var(--camelot-b) 14%, transparent);
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s ease;
+    box-shadow 0.35s ease,
+    background 0.35s ease;
+}
+
+.mixer-console::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--camelot-a) 82%, white 10%),
+    color-mix(in srgb, var(--camelot-a) 42%, var(--camelot-b) 42%, white 8%) 50%,
+    color-mix(in srgb, var(--camelot-b) 82%, white 10%)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+  transition: background 0.35s ease;
+}
+
+.mixer-console > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cdj-pitch-input {
+  --fill-start: 50%;
+  --fill-end: 50%;
+  --range-center: 50%;
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: ltr;
+  height: min(176px, 40vw);
+  width: 28px;
+  margin: 0;
+  padding: 13px 0;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  accent-color: var(--camelot-color);
+  cursor: ns-resize;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+
+.cdj-pitch-input::-webkit-slider-runnable-track {
+  width: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(0, 0, 0, 0.62) var(--fill-start),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) var(--fill-start),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) var(--fill-end),
+    rgba(0, 0, 0, 0.62) var(--fill-end),
+    rgba(0, 0, 0, 0.62) 100%
+  );
+  border: 1px solid var(--cdj-edge-soft);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+.cdj-pitch-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 5px;
+  border: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white),
+    var(--camelot-color) 42%,
+    color-mix(in srgb, var(--camelot-color) 72%, black)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.45),
+    0 0 12px var(--cdj-glow-strong);
+  cursor: grab;
+}
+
+.cdj-pitch-input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.cdj-pitch-input::-moz-range-track {
+  width: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(0, 0, 0, 0.62) var(--fill-start),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) var(--fill-start),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) var(--fill-end),
+    rgba(0, 0, 0, 0.62) var(--fill-end),
+    rgba(0, 0, 0, 0.62) 100%
+  );
+  border: 1px solid var(--cdj-edge-soft);
+}
+
+.cdj-pitch-input::-moz-range-thumb {
+  width: 26px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  border-radius: 5px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white),
+    var(--camelot-color) 42%,
+    color-mix(in srgb, var(--camelot-color) 72%, black)
+  );
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), 0 0 12px var(--cdj-glow-strong);
+  cursor: grab;
 }
 
 .mixer-console::before {
   content: "";
   position: absolute;
-  inset: 5px;
+  inset: 6px;
   border-radius: 14px;
   pointer-events: none;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+  z-index: 1;
 }
 
 .mixer-console-head {
@@ -1253,21 +1818,34 @@
 }
 
 .mixer-eq-channel {
+  --camelot-color: #8b8fa8;
+  --mixer-edge: color-mix(in srgb, var(--camelot-color) 38%, var(--line));
+  --mixer-edge-soft: color-mix(in srgb, var(--camelot-color) 24%, var(--line));
+  --mixer-glow: color-mix(in srgb, var(--camelot-color) 18%, transparent);
   display: grid;
   gap: 0.35rem;
   justify-items: center;
   padding: 0.35rem 0.28rem 0.42rem;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--mixer-edge);
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--camelot-color) 8%, transparent), transparent 62%),
+    rgba(255, 255, 255, 0.02);
+  box-shadow:
+    inset 0 0 18px color-mix(in srgb, var(--camelot-color) 6%, transparent),
+    0 0 14px var(--mixer-glow);
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
 }
 
 .mixer-eq-channel[data-channel="a"] {
-  border-color: color-mix(in srgb, var(--cyan) 32%, var(--line));
+  --camelot-color: var(--camelot-a);
 }
 
 .mixer-eq-channel[data-channel="b"] {
-  border-color: color-mix(in srgb, var(--magenta) 32%, var(--line));
+  --camelot-color: var(--camelot-b);
 }
 
 .mixer-eq-channel-label {
@@ -1275,26 +1853,23 @@
   font-family: var(--font-hud);
   font-size: 0.72rem;
   letter-spacing: 0.12em;
-}
-
-.mixer-eq-channel[data-channel="a"] .mixer-eq-channel-label {
-  color: var(--cyan-hot);
-}
-
-.mixer-eq-channel[data-channel="b"] .mixer-eq-channel-label {
-  color: var(--magenta-hot);
+  color: color-mix(in srgb, var(--camelot-color) 78%, white);
+  text-shadow: 0 0 10px var(--mixer-glow);
+  transition: color 0.35s ease, text-shadow 0.35s ease;
 }
 
 .mixer-channel-pre {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.28rem;
   width: 100%;
   padding: 0.28rem 0.2rem 0.32rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--mixer-edge-soft);
   background: rgba(0, 0, 0, 0.22);
   justify-items: center;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--camelot-color) 5%, transparent);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .mixer-channel-pre .mixer-vol-knob {
@@ -1320,30 +1895,19 @@
   height: 9px;
 }
 
-.mixer-eq-channel[data-channel="a"] .mixer-vol-knob-face {
-  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 10px rgba(0, 232, 255, 0.16),
-    0 6px 12px rgba(0, 0, 0, 0.35);
+.mixer-eq-channel .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--camelot-color) 78%, white);
+  --knob-ring-glow: var(--mixer-glow);
 }
 
-.mixer-eq-channel[data-channel="a"] .mixer-vol-knob-tick::before {
-  background: var(--cyan-hot);
+.mixer-eq-channel .mixer-vol-knob-tick::before {
+  background: color-mix(in srgb, var(--camelot-color) 85%, white);
+  box-shadow: 0 0 6px var(--mixer-glow);
+  transition: background 0.35s ease, box-shadow 0.35s ease;
 }
 
-.mixer-eq-channel[data-channel="b"] .mixer-vol-knob-face {
-  border-color: color-mix(in srgb, var(--magenta) 45%, var(--line));
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 10px rgba(255, 45, 149, 0.16),
-    0 6px 12px rgba(0, 0, 0, 0.35);
-}
-
-.mixer-eq-channel[data-channel="b"] .mixer-vol-knob-tick::before {
-  background: var(--magenta-hot);
+.mixer-eq-channel .mixer-vol-knob-dial:focus-within {
+  --knob-ring-glow: color-mix(in srgb, var(--camelot-color) 34%, transparent);
 }
 
 .mixer-vol-knob.is-disabled {
@@ -1401,53 +1965,13 @@
   flex: 0 0 auto;
 }
 
-.mixer-eq-kill {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  margin-top: 0;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  background: rgba(255, 255, 255, 0.02);
-  box-shadow: none;
-  opacity: 0.62;
-  transition:
-    opacity 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease;
+.mixer-eq-band-row--solo {
+  justify-content: center;
 }
 
-.mixer-eq-kill-dot {
-  width: 0.3rem;
-  height: 0.3rem;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--muted) 55%, transparent);
-  box-shadow: none;
-}
-
-.mixer-eq-kill:hover {
-  opacity: 0.92;
-  border-color: color-mix(in srgb, var(--cyan) 35%, var(--line));
-}
-
-.mixer-eq-channel[data-channel="b"] .mixer-eq-kill:hover {
-  border-color: color-mix(in srgb, var(--magenta) 35%, var(--line));
-}
-
-.mixer-eq-kill.is-on {
-  opacity: 1;
-  border-color: color-mix(in srgb, var(--danger) 70%, transparent);
-  background: color-mix(in srgb, var(--danger) 22%, transparent);
-  box-shadow: 0 0 6px rgba(255, 70, 90, 0.22);
-}
-
-.mixer-eq-kill.is-on .mixer-eq-kill-dot {
-  background: var(--danger);
-  box-shadow: 0 0 4px rgba(255, 70, 90, 0.45);
+.mixer-eq-filter {
+  padding-top: 0.08rem;
+  border-top: 1px solid var(--mixer-edge-soft);
 }
 
 .mixer-xf-block {
@@ -1455,12 +1979,23 @@
   gap: 0.35rem;
   padding: 0.55rem 0.45rem 0.65rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
+  border: 1px solid color-mix(in srgb, var(--camelot-a) 22%, var(--camelot-b) 22%, var(--line));
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--camelot-a) 10%, transparent),
+      rgba(0, 0, 0, 0.18) 50%,
+      color-mix(in srgb, var(--camelot-b) 10%, transparent)
+    );
   box-shadow:
     inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    0 0 18px color-mix(in srgb, var(--camelot-a) 8%, var(--camelot-b) 8%, transparent),
     0 6px 12px rgba(0, 0, 0, 0.28);
   transform: translateZ(6px);
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
 }
 
 .mixer-xf-label {
@@ -1472,7 +2007,86 @@
 }
 
 .mixer-xfader {
+  --range-pct: 50%;
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  accent-color: color-mix(in srgb, var(--camelot-a) 50%, var(--camelot-b) 50%);
+  cursor: ew-resize;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+
+.mixer-xfader::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--camelot-a) 52%, transparent) 0%,
+    color-mix(in srgb, var(--camelot-a) 52%, transparent) var(--range-pct),
+    rgba(0, 0, 0, 0.62) var(--range-pct),
+    rgba(0, 0, 0, 0.62) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--camelot-a) 18%, var(--camelot-b) 18%, var(--line));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+.mixer-xfader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 26px;
+  margin-top: -8px;
+  border-radius: 5px;
+  border: 2px solid color-mix(in srgb, var(--camelot-a) 35%, var(--camelot-b) 35%, white);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-a) 30%, var(--camelot-b) 30%, white),
+    color-mix(in srgb, var(--camelot-a) 50%, var(--camelot-b) 50%),
+    color-mix(in srgb, var(--camelot-a) 65%, var(--camelot-b) 65%, black)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.45),
+    0 0 14px color-mix(in srgb, var(--camelot-a) 16%, var(--camelot-b) 16%, transparent);
+  cursor: grab;
+}
+
+.mixer-xfader:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.mixer-xfader::-moz-range-track {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid color-mix(in srgb, var(--camelot-a) 18%, var(--camelot-b) 18%, var(--line));
+}
+
+.mixer-xfader::-moz-range-progress {
+  height: 10px;
+  border-radius: 6px 0 0 6px;
+  background: color-mix(in srgb, var(--camelot-a) 52%, transparent);
+}
+
+.mixer-xfader::-moz-range-thumb {
+  width: 16px;
+  height: 26px;
+  border: 2px solid color-mix(in srgb, var(--camelot-a) 35%, var(--camelot-b) 35%, white);
+  border-radius: 5px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-a) 30%, var(--camelot-b) 30%, white),
+    color-mix(in srgb, var(--camelot-a) 50%, var(--camelot-b) 50%),
+    color-mix(in srgb, var(--camelot-a) 65%, var(--camelot-b) 65%, black)
+  );
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), 0 0 14px color-mix(in srgb, var(--camelot-a) 16%, var(--camelot-b) 16%, transparent);
+  cursor: grab;
 }
 
 .mixer-xf-curve {
@@ -1481,6 +2095,18 @@
   font-family: var(--font-mono);
   font-size: 0.55rem;
   color: var(--muted);
+}
+
+.mixer-xf-curve span:first-child {
+  color: color-mix(in srgb, var(--camelot-a) 78%, white);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--camelot-a) 28%, transparent);
+  transition: color 0.35s ease, text-shadow 0.35s ease;
+}
+
+.mixer-xf-curve span:last-child {
+  color: color-mix(in srgb, var(--camelot-b) 78%, white);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--camelot-b) 28%, transparent);
+  transition: color 0.35s ease, text-shadow 0.35s ease;
 }
 
 .mixer-pfl-row {
@@ -1529,27 +2155,127 @@
 }
 
 .mixer-fader {
+  --camelot-color: #8b8fa8;
+  --mixer-edge: color-mix(in srgb, var(--camelot-color) 38%, var(--line));
+  --mixer-edge-soft: color-mix(in srgb, var(--camelot-color) 24%, var(--line));
+  --mixer-glow: color-mix(in srgb, var(--camelot-color) 18%, transparent);
   display: grid;
   justify-items: center;
   gap: 0.35rem;
   padding: 0.45rem 0.35rem 0.5rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(0, 0, 0, 0.22);
-  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.38);
+  border: 1px solid var(--mixer-edge);
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--camelot-color) 8%, transparent), transparent 62%),
+    rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.38),
+    inset 0 0 14px color-mix(in srgb, var(--camelot-color) 5%, transparent),
+    0 0 12px var(--mixer-glow);
   transform: translateZ(4px);
   font-family: var(--font-mono);
   font-size: 0.58rem;
   letter-spacing: 0.1em;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--camelot-color) 72%, white);
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease,
+    color 0.35s ease;
+}
+
+.mixer-fader[data-deck="a"] {
+  --camelot-color: var(--camelot-a);
+}
+
+.mixer-fader[data-deck="b"] {
+  --camelot-color: var(--camelot-b);
 }
 
 .mixer-fader input {
+  --range-pct: 50%;
+  -webkit-appearance: none;
+  appearance: none;
   writing-mode: vertical-lr;
   direction: rtl;
   height: 96px;
   width: 26px;
+  margin: 0;
+  padding: 8px 0;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  accent-color: var(--camelot-color);
+  cursor: ns-resize;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+
+.mixer-fader input::-webkit-slider-runnable-track {
+  width: 10px;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(0, 0, 0, 0.62) calc(100% - var(--range-pct)),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) calc(100% - var(--range-pct)),
+    color-mix(in srgb, var(--camelot-color) 48%, transparent) 100%
+  );
+  border: 1px solid var(--mixer-edge-soft);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+.mixer-fader input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 5px;
+  border: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white),
+    var(--camelot-color) 42%,
+    color-mix(in srgb, var(--camelot-color) 72%, black)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.45),
+    0 0 12px var(--mixer-glow);
+  cursor: grab;
+}
+
+.mixer-fader input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.mixer-fader input::-moz-range-track {
+  width: 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid var(--mixer-edge-soft);
+}
+
+.mixer-fader input::-moz-range-progress {
+  width: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--camelot-color) 48%, transparent);
+}
+
+.mixer-fader input::-moz-range-thumb {
+  width: 26px;
+  height: 16px;
+  border-radius: 5px;
+  border: 2px solid color-mix(in srgb, var(--camelot-color) 70%, white);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--camelot-color) 55%, white),
+    var(--camelot-color) 42%,
+    color-mix(in srgb, var(--camelot-color) 72%, black)
+  );
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), 0 0 12px var(--mixer-glow);
+  cursor: grab;
 }
 
 .mixer-monitor-knobs {
@@ -1570,19 +2296,12 @@
 .mixer-monitor-knobs--hero {
   gap: 0.5rem;
   padding: 0.7rem 0.55rem 0.75rem;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--amber) 42%, var(--violet) 28%, white 8%);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 193, 74, 0.14), transparent 58%),
-    radial-gradient(circle at 80% 100%, rgba(139, 124, 255, 0.12), transparent 52%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.28) 72%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.42),
-    0 0 32px rgba(255, 193, 74, 0.12),
-    0 0 24px rgba(139, 124, 255, 0.1),
-    0 12px 24px rgba(0, 0, 0, 0.38);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   transform: translateZ(16px);
+  overflow: visible;
 }
 
 .mixer-monitor-knobs-label {
@@ -1597,10 +2316,95 @@
   text-shadow: 0 0 12px rgba(255, 193, 74, 0.35);
 }
 
+.mixer-monitor-knobs--hero .mixer-monitor-knobs-label {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--camelot-a) 82%, white),
+    color-mix(in srgb, var(--camelot-a) 55%, var(--camelot-b) 45%, white) 50%,
+    color-mix(in srgb, var(--camelot-b) 82%, white)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--camelot-a) 18%, var(--camelot-b) 18%, transparent));
+  transition: background 0.35s ease, filter 0.35s ease;
+}
+
+.mixer-master-cue {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-width: 8.5rem;
+  padding: 0.42rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--muted);
+  font-family: var(--font-hud);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.mixer-master-cue.is-on {
+  color: #07101a;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe08a, #f2b53c);
+  box-shadow: 0 0 12px rgba(242, 181, 60, 0.35);
+}
+
 .mixer-monitor-knobs--hero .mixer-vol-knob-label {
   font-size: 0.54rem;
   letter-spacing: 0.14em;
   color: color-mix(in srgb, var(--text) 88%, white);
+  transition: color 0.35s ease;
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--master .mixer-vol-knob-label {
+  color: color-mix(in srgb, var(--camelot-a) 72%, white);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--booth .mixer-vol-knob-label {
+  color: color-mix(in srgb, var(--camelot-a) 36%, var(--camelot-b) 36%, white);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--cue .mixer-vol-knob-label {
+  color: color-mix(in srgb, var(--camelot-b) 72%, white);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--master .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--camelot-a) 82%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--camelot-a) 28%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--master .mixer-vol-knob-tick::before {
+  background: color-mix(in srgb, var(--camelot-a) 85%, white);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--camelot-a) 28%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--booth .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--camelot-a) 42%, var(--camelot-b) 42%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--camelot-a) 14%, var(--camelot-b) 14%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--booth .mixer-vol-knob-tick::before {
+  background: color-mix(in srgb, var(--camelot-a) 42%, var(--camelot-b) 42%, white);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--camelot-a) 14%, var(--camelot-b) 14%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--cue .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--camelot-b) 82%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--camelot-b) 28%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-vol-knob--cue .mixer-vol-knob-tick::before {
+  background: color-mix(in srgb, var(--camelot-b) 85%, white);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--camelot-b) 28%, transparent);
+}
+
+.mixer-monitor-knobs--hero .mixer-master-cue {
+  border-color: color-mix(in srgb, var(--camelot-a) 18%, var(--camelot-b) 18%, rgba(255, 255, 255, 0.14));
+  transition: border-color 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
 }
 
 .mixer-monitor-knobs--hero .mixer-vol-knob-dial {
@@ -1629,7 +2433,11 @@
 }
 
 .mixer-vol-knob-dial {
+  --vol-norm: 0;
   --vol-rot: -135deg;
+  --knob-ring-active: color-mix(in srgb, var(--camelot-color, var(--cyan-hot)) 78%, white);
+  --knob-ring-track: color-mix(in srgb, var(--line-strong) 58%, transparent);
+  --knob-ring-glow: color-mix(in srgb, var(--knob-ring-active) 34%, transparent);
   position: relative;
   width: 52px;
   height: 52px;
@@ -1643,30 +2451,45 @@
 
 .mixer-vol-knob-dial:focus-within {
   outline: none;
+  --knob-ring-glow: color-mix(in srgb, var(--knob-ring-active) 48%, transparent);
 }
 
-.mixer-vol-knob-dial:focus-within .mixer-vol-knob-face {
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 0 2px color-mix(in srgb, var(--cyan) 55%, transparent);
+.mixer-vol-knob-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(
+    from -135deg,
+    var(--knob-ring-active) 0deg,
+    var(--knob-ring-active) calc(var(--vol-norm) * 270deg),
+    var(--knob-ring-track) calc(var(--vol-norm) * 270deg),
+    var(--knob-ring-track) 270deg,
+    transparent 270deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  filter: drop-shadow(0 0 8px var(--knob-ring-glow));
+  transition:
+    background 0.16s ease,
+    filter 0.16s ease;
 }
 
 .mixer-vol-knob-face {
+  position: absolute;
+  inset: 4px;
   display: grid;
   place-items: center;
-  width: 100%;
-  height: 100%;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--line-strong) 82%, white);
   background:
     radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.2), transparent 38%),
-    conic-gradient(from 0deg, #1c2534 0 8%, #0b1018 8% 16%);
+    linear-gradient(180deg, #1c2534, #0b1018);
   box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.1),
     inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 6px 12px rgba(0, 0, 0, 0.35);
+    0 4px 10px rgba(0, 0, 0, 0.32);
   transform: rotate(var(--vol-rot));
+  transition: transform 0.12s ease;
 }
 
 .mixer-vol-knob-tick {
@@ -1705,39 +2528,27 @@
   color: var(--text);
 }
 
-.mixer-vol-knob--master .mixer-vol-knob-face {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 10px rgba(255, 193, 74, 0.16),
-    0 6px 12px rgba(0, 0, 0, 0.35);
+.mixer-vol-knob--master .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--amber-hot) 82%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--amber-hot) 28%, transparent);
 }
 
 .mixer-vol-knob--master .mixer-vol-knob-tick::before {
   background: var(--amber-hot);
 }
 
-.mixer-vol-knob--booth .mixer-vol-knob-face {
-  border-color: color-mix(in srgb, var(--violet) 45%, var(--line));
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 10px rgba(139, 124, 255, 0.16),
-    0 6px 12px rgba(0, 0, 0, 0.35);
+.mixer-vol-knob--booth .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--violet-hot) 82%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--violet-hot) 28%, transparent);
 }
 
 .mixer-vol-knob--booth .mixer-vol-knob-tick::before {
   background: var(--violet-hot);
 }
 
-.mixer-vol-knob--cue .mixer-vol-knob-face {
-  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -8px 12px rgba(0, 0, 0, 0.45),
-    0 0 10px rgba(0, 232, 255, 0.16),
-    0 6px 12px rgba(0, 0, 0, 0.35);
+.mixer-vol-knob--cue .mixer-vol-knob-dial {
+  --knob-ring-active: color-mix(in srgb, var(--cyan-hot) 82%, white);
+  --knob-ring-glow: color-mix(in srgb, var(--cyan-hot) 28%, transparent);
 }
 
 .mixer-vol-knob--cue .mixer-vol-knob-tick::before {
@@ -1750,10 +2561,42 @@
   }
 }
 
-@media (max-width: 1100px) {
-  .mixer-board {
+@media (min-width: 1400px) {
+  .mixer-stage {
+    grid-template-columns: minmax(14rem, 1.18fr) minmax(0, 2.72fr) minmax(14rem, 1.18fr);
+    gap: 1.05rem var(--mixer-stage-gap);
+  }
+
+  .deck-playlist-item-copy strong {
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 1399px) {
+  .mixer-stage {
     grid-template-columns: 1fr;
     transform: none;
+  }
+
+  .mixer-board {
+    order: 2;
+    width: 100%;
+    grid-template-columns: 1fr;
+    transform: none;
+  }
+
+  .deck-playlist {
+    width: 100%;
+    max-height: 15rem;
+    transform: none;
+  }
+
+  .deck-playlist[data-side="right"] {
+    order: 3;
+  }
+
+  .deck-playlist[data-side="left"] {
+    order: 1;
   }
 
   .cdj-deck,
@@ -1778,12 +2621,44 @@
   .mixer-fader input {
     writing-mode: horizontal-tb;
     direction: ltr;
-    height: auto;
+    height: 28px;
     width: 100%;
+    padding: 0 13px;
+    cursor: ew-resize;
+  }
+
+  .mixer-fader input::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 10px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--camelot-color) 48%, transparent) 0%,
+      color-mix(in srgb, var(--camelot-color) 48%, transparent) var(--range-pct),
+      rgba(0, 0, 0, 0.62) var(--range-pct),
+      rgba(0, 0, 0, 0.62) 100%
+    );
+  }
+
+  .mixer-fader input::-webkit-slider-thumb {
+    margin-left: 0;
+    margin-top: -8px;
+  }
+
+  .mixer-fader input::-moz-range-track {
+    width: 100%;
+    height: 10px;
+  }
+
+  .mixer-fader input::-moz-range-progress {
+    width: 100%;
+    height: 10px;
+    border-radius: 6px 0 0 6px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mixer-stage,
+  .deck-playlist,
   .mixer-board,
   .cdj-deck,
   .mixer-console,

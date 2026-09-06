@@ -1,19 +1,27 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { TRAINING_TRACKS } from "../../data/training-tracks";
+import {
+  consumeLoadClickSuppression,
+  deckFileInputId,
+  openDeckFileDialog,
+} from "../../lib/deck-file-picker";
+import { pitchSliderStyle } from "../../lib/range-slider-style";
 import { engine } from "../../lib/audio-engine";
-import { harmonicDistance, resolveMusicalKey } from "../../lib/musical-key";
-import type { DeckId, MixerAction } from "../../types";
+import { getCamelotKey, harmonicDistance, resolveMusicalKey } from "../../lib/musical-key";
+import type { BrowseSource, DeckId, MixerAction } from "../../types";
 
 function Waveform({
   id,
   spinning,
   phase,
   peaks,
+  accentColor,
 }: {
   id: DeckId;
   spinning: boolean;
   phase: number;
   peaks: Float32Array | null;
+  /** Cor Camelot da faixa carregada, para o traço da waveform. */
+  accentColor: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -34,7 +42,7 @@ function Waveform({
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
-      const base = id === "a" ? "#00e8ff" : "#ff2d95";
+      const base = accentColor;
       ctx.fillStyle = "rgba(7, 11, 18, 0.92)";
       ctx.fillRect(0, 0, width, height);
 
@@ -81,7 +89,7 @@ function Waveform({
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [id, phase, spinning, peaks]);
+  }, [accentColor, id, phase, spinning, peaks]);
 
   return <canvas ref={ref} className="cdj-wave" aria-hidden="true" />;
 }
@@ -117,7 +125,6 @@ function JogWheel({
     <div className="cdj-jog-shell">
       <div
         className="cdj-jog"
-        data-stage="10"
         data-playing={playing ? "true" : "false"}
         data-mode={mode}
         onPointerDown={onPointerDown}
@@ -140,20 +147,47 @@ export function CdjDeck({
   id,
   masterKey,
   loadPending = false,
-  onLoadClick,
+  browseSource = "local",
+  libraryLoading = false,
+  remoteLoad,
+  onRetryRemote,
+  browseKeyFilter = null,
+  onKeyMetricClick,
+  onLoadPrepare,
+  onFile,
   onChange,
 }: {
   id: DeckId;
   masterKey: string;
   loadPending?: boolean;
-  onLoadClick: () => void;
+  browseSource?: BrowseSource;
+  /** Biblioteca remota ainda sem primeira resposta da API. */
+  libraryLoading?: boolean;
+  remoteLoad?: { status: string; message?: string };
+  onRetryRemote?: () => void;
+  /** Filtro Camelot ativo na biblioteca compartilhada. */
+  browseKeyFilter?: string | null;
+  /** Abre a roda Camelot para escolher o filtro de tom. */
+  onKeyMetricClick?: () => void;
+  /** Limpa o arm do LOAD MIDI antes do gesto nativo do arquivo. */
+  onLoadPrepare?: () => void;
+  /** Callback quando o aluno escolhe um arquivo no picker. */
+  onFile: (file: File) => void;
   onChange: (action: MixerAction) => void;
 }) {
   const deck = engine.snapshot[id];
   const bpm = engine.effectiveBpm(id).toFixed(2);
   const musical = resolveMusicalKey(deck.track.key);
   const harmony = harmonicDistance(masterKey, deck.track.key);
+  const remoteBusy =
+    remoteLoad?.status === "checking" ||
+    remoteLoad?.status === "preparing" ||
+    remoteLoad?.status === "decoding";
+  const remoteCopy = remoteLoadCopy(remoteLoad?.status, remoteLoad?.message);
+  const camelotColor = getCamelotKey(deck.track.key)?.color ?? "#8b8fa8";
+  const deckStyle = { "--camelot-color": camelotColor } as CSSProperties;
 
+  const pitchInputValue = -deck.pitch;
   const pitchFader = (
     <label className="cdj-pitch cdj-pitch--hero">
       <span className="cdj-pitch-label">PITCH · TEMPO</span>
@@ -164,9 +198,13 @@ export function CdjDeck({
           min={-8}
           max={8}
           step={0.1}
-          value={deck.pitch}
+          value={pitchInputValue}
+          style={pitchSliderStyle(pitchInputValue)}
           aria-label={`Pitch deck ${id.toUpperCase()}`}
-          onChange={(event) => onChange({ type: "pitch", id, value: Number(event.target.value) })}
+          aria-valuetext={`${deck.pitch.toFixed(1)}%`}
+          onChange={(event) =>
+            onChange({ type: "pitch", id, value: -Number(event.target.value) })
+          }
         />
       </div>
       <span className="cdj-pitch-value">{deck.pitch.toFixed(1)}%</span>
@@ -176,7 +214,6 @@ export function CdjDeck({
   return (
     <section
       className="cdj-deck"
-      data-stage="9"
       data-deck={id}
       data-playing={deck.playing ? "true" : "false"}
       data-phase={deck.phase.toFixed(3)}
@@ -189,6 +226,9 @@ export function CdjDeck({
       data-eq-high={String(deck.eq.high)}
       data-loop-active={deck.loop.active ? "true" : "false"}
       data-load-pending={loadPending ? "true" : "false"}
+      data-loading={remoteBusy ? "true" : "false"}
+      data-browse-source={browseSource}
+      style={deckStyle}
       aria-label={`Deck ${id.toUpperCase()}`}
     >
       <header className="cdj-deck-top">
@@ -204,22 +244,40 @@ export function CdjDeck({
       </header>
 
       <div className="cdj-display">
+        <span className="cdj-display-glint" aria-hidden="true" />
         <div className="cdj-track-meta">
           <strong>{deck.track.title}</strong>
           <span>{deck.track.artist}</span>
           <span className="cdj-genre">{deck.track.genre}</span>
         </div>
+        {remoteCopy ? (
+          <p className="cdj-remote-load" role={remoteLoad?.status === "error" ? "alert" : "status"}>
+            <span>{remoteCopy}</span>
+            {remoteLoad?.status === "error" ? (
+              <button type="button" className="cdj-remote-retry" onClick={onRetryRemote}>
+                Tentar de novo
+              </button>
+            ) : null}
+          </p>
+        ) : null}
         <div className="cdj-metrics">
           <div className="cdj-metric cdj-metric--bpm">
             <span className="cdj-metric-label">BPM</span>
             <span className="cdj-metric-value">{bpm}</span>
             <span className="cdj-metric-sub">Pitch {deck.pitch.toFixed(1)}%</span>
           </div>
-          <div className="cdj-metric cdj-metric--key" data-harmony={harmony}>
+          <button
+            type="button"
+            className="cdj-metric cdj-metric--key"
+            data-harmony={harmony}
+            data-filter-active={browseKeyFilter ? "true" : "false"}
+            aria-label={`Tom Camelot ${deck.track.key}. Clique para filtrar a biblioteca por escala`}
+            onClick={onKeyMetricClick}
+          >
             <span className="cdj-metric-label">KEY</span>
             <span className="cdj-metric-value">{deck.track.key}</span>
             <span className="cdj-metric-sub">{musical.label}</span>
-          </div>
+          </button>
           <div className="cdj-metric cdj-metric--phase">
             <span className="cdj-metric-label">PHASE</span>
             <span
@@ -232,38 +290,43 @@ export function CdjDeck({
         </div>
       </div>
 
-      <div className="cdj-track-row">
-        <label className="cdj-track-select">
-          <span>USB · treino Mamute</span>
-          <select
-            value={deck.track.id.startsWith("file:") ? "" : deck.track.id}
-            aria-label={`Track deck ${id.toUpperCase()}`}
-            onChange={(event) => onChange({ type: "loadTrack", id, trackId: event.target.value })}
-          >
-            {deck.track.id.startsWith("file:") ? (
-              <option value="" disabled>
-                {deck.track.title} · arquivo
-              </option>
-            ) : null}
-            {TRAINING_TRACKS.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.title} · {track.key} · {track.bpm} BPM
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="cdj-load-row">
         <button
-          className="cdj-btn cdj-btn--load"
           type="button"
-          aria-label={`Carregar deck ${id.toUpperCase()}`}
+          className="cdj-btn cdj-btn--load"
+          data-deck-load={id}
           data-pending={loadPending ? "true" : "false"}
-          onClick={onLoadClick}
+          aria-label={`Carregar deck ${id.toUpperCase()}`}
+          disabled={libraryLoading && browseSource === "remote"}
+          onClick={() => {
+            if (browseSource === "remote") {
+              onChange({ type: "requestDeckLoad", id });
+              return;
+            }
+            if (consumeLoadClickSuppression()) return;
+            onLoadPrepare?.();
+            void openDeckFileDialog(id, onFile);
+          }}
         >
           LOAD
         </button>
+        <input
+          id={deckFileInputId(id)}
+          type="file"
+          className="mixer-deck-file-input"
+          accept="audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg"
+          data-deck-file={id}
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file) onFile(file);
+          }}
+        />
       </div>
 
-      <Waveform id={id} phase={deck.phase} spinning={deck.playing} peaks={deck.peaks} />
+      <Waveform id={id} phase={deck.phase} spinning={deck.playing} peaks={deck.peaks} accentColor={camelotColor} />
 
       <div className="cdj-transport-primary">
         <p className="cdj-transport-label">Comandos principais</p>
@@ -352,6 +415,36 @@ export function CdjDeck({
           QUANTIZE
         </button>
       </div>
+
+      <div className="cdj-pads" role="group" aria-label={`Hot cues deck ${id.toUpperCase()}`}>
+        {deck.hotCues.map((cue) => (
+          <button
+            key={cue.slot}
+            type="button"
+            className={`cdj-performance-pad${cue.set ? " is-set" : ""}`}
+            aria-label={`Hot cue ${cue.slot} deck ${id.toUpperCase()}`}
+            aria-pressed={cue.set}
+            data-slot={cue.slot}
+            onClick={() => onChange({ type: "hotCuePad", id, slot: cue.slot })}
+          >
+            {cue.slot}
+          </button>
+        ))}
+      </div>
     </section>
   );
+}
+
+/**
+ * Texto do LOAD remoto no visor do deck.
+ *
+ * @param status Fase atual, ou ausente se o deck está ocioso.
+ * @param message Erro vindo da API.
+ */
+function remoteLoadCopy(status?: string, message?: string): string | null {
+  if (status === "checking") return "Verificando áudio…";
+  if (status === "preparing") return "Preparando faixa…";
+  if (status === "decoding") return "Decodificando…";
+  if (status === "error") return message ?? "Falha ao carregar a faixa remota";
+  return null;
 }

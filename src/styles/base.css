@@ -36,6 +36,8 @@
   --beat-ms: calc(60000ms / var(--visor-bpm));
   --ticker-duration: 93s;
   --layout-max: 1180px;
+  --mixer-layout-max: 1840px;
+  --mixer-stage-gap: clamp(1rem, 1.6vw, 1.85rem);
   --layout-gutter: 1rem;
   --cookie-banner-h: 0px;
   --radio-fm-gap: 0.75rem;

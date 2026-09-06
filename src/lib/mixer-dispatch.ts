@@ -1,4 +1,11 @@
-import type { DeckFileMeta, DeckId, JogMode, MixerAction, MixerSnapshot } from "../types/mixer";
+import type {
+  BrowseSource,
+  DeckFileMeta,
+  DeckId,
+  JogMode,
+  MixerAction,
+  MixerSnapshot,
+} from "../types/mixer";
 import type { BrowseState } from "./mixer-browse";
 import { phaseToBeat } from "./mixer-snapshot";
 
@@ -16,11 +23,11 @@ export type MixerEngine = {
   setTrim(id: DeckId, value: number): void;
   setFilter(id: DeckId, value: number): void;
   setEq(id: DeckId, band: "high" | "mid" | "low", value: number): void;
-  setEqKill(id: DeckId, band: "high" | "mid" | "low", value: boolean): void;
   setCrossfader(value: number): void;
   setMaster(value: number): void;
   setBooth(value: number): void;
   setCueMix(value: number): void;
+  setMasterCue(enabled: boolean): void;
   setSync(id: DeckId, enabled: boolean): void;
   setMasterDeck(id: DeckId): void;
   setCueMonitor(id: DeckId, enabled: boolean): void;
@@ -35,8 +42,18 @@ export type MixerEngine = {
   triggerHotCue(id: DeckId, slot: number): void;
   toggle(id: DeckId): Promise<void>;
   toggleLoop(id: DeckId): void;
+  setLoopIn(id: DeckId): void;
+  setLoopOut(id: DeckId): void;
+  loopHalve(id: DeckId): void;
+  loopDouble(id: DeckId): void;
+  setBeatLoop(id: DeckId, beats: number): void;
+  jumpBeats(id: DeckId, beats: number): void;
+  scratchBegin(id: DeckId): void;
+  scratchTick(id: DeckId, delta: number): void;
+  scratchEnd(id: DeckId): void;
   nudge(id: DeckId, direction: -1 | 1): void;
   ensure(): Promise<void>;
+  audioContext(): AudioContext | null;
   loadDeckBuffer(id: DeckId, buffer: AudioBuffer, meta: DeckFileMeta): void;
   loadDeckFile(id: DeckId, file: File): Promise<void>;
   setDeckMeta(id: DeckId, meta: { bpm?: number; key?: string; title?: string }): void;
@@ -49,7 +66,8 @@ export type MixerEngine = {
 export type MixerUiOp =
   | { kind: "openFilePicker"; deckId: DeckId }
   | { kind: "armFilePicker"; deckId: DeckId }
-  | { kind: "showLoadError"; message: string };
+  | { kind: "showLoadError"; message: string }
+  | { kind: "loadRemoteTrack"; deckId: DeckId; trackId: string };
 
 export type DispatchResult =
   | { kind: "noop" }
@@ -64,11 +82,20 @@ export type DispatchResult =
  */
 export type ResolvedPlan =
   | { kind: "noop" }
-  | { kind: "browse-move"; nextCursor: number }
-  | { kind: "browse-home"; nextCursor: number }
+  | { kind: "browse-move"; deckId: DeckId; nextCursor: number }
+  | { kind: "browse-home"; deckId: DeckId; nextCursor: number }
   | { kind: "absolute"; action: MixerAction }
   | { kind: "engine-toggle"; id: DeckId }
   | { kind: "engine-loop"; id: DeckId }
+  | { kind: "engine-loop-in"; id: DeckId }
+  | { kind: "engine-loop-out"; id: DeckId }
+  | { kind: "engine-loop-halve"; id: DeckId }
+  | { kind: "engine-loop-double"; id: DeckId }
+  | { kind: "engine-beat-loop"; id: DeckId; beats: number }
+  | { kind: "engine-jump"; id: DeckId; beats: number }
+  | { kind: "engine-scratch-begin"; id: DeckId }
+  | { kind: "engine-scratch-tick"; id: DeckId; delta: number }
+  | { kind: "engine-scratch-end"; id: DeckId }
   | { kind: "engine-cue-press"; id: DeckId }
   | { kind: "engine-cue-release"; id: DeckId }
   | { kind: "engine-nudge"; id: DeckId; direction: -1 | 1 }
@@ -77,9 +104,11 @@ export type ResolvedPlan =
 
 export type MixerDispatchDeps = {
   eng: MixerEngine;
-  browse: BrowseState;
+  browseByDeck: Record<DeckId, BrowseState>;
+  getMasterDeck: () => DeckId;
   dispatchReducer: (action: MixerAction) => void;
   onUiOp?: (op: MixerUiOp) => void;
+  getBrowseSource?: () => BrowseSource;
 };
 
 /**
@@ -107,9 +136,6 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "eq":
       eng.setEq(action.id, action.band, action.value);
       return;
-    case "eqKill":
-      eng.setEqKill(action.id, action.band, action.value);
-      return;
     case "xf":
       eng.setCrossfader(action.value);
       return;
@@ -121,6 +147,9 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
       return;
     case "cueMix":
       eng.setCueMix(action.value);
+      return;
+    case "masterCue":
+      eng.setMasterCue(action.value);
       return;
     case "sync":
       eng.setSync(action.id, action.value);
@@ -162,11 +191,21 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "toggle":
     case "toggleSync":
     case "toggleCueMonitor":
+    case "toggleMasterCue":
     case "cuePress":
     case "cueRelease":
     case "toggleLoop":
     case "loopOn":
     case "loopOff":
+    case "setLoopIn":
+    case "setLoopOut":
+    case "loopHalve":
+    case "loopDouble":
+    case "setBeatLoop":
+    case "jumpBeats":
+    case "scratchBegin":
+    case "scratchTick":
+    case "scratchEnd":
     case "hotCuePad":
     case "nudge":
     case "browseMove":
@@ -175,6 +214,7 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "refresh":
     case "requestDeckLoad":
     case "loadDeckFile":
+    case "loadRemoteTrack":
       return;
   }
 }
@@ -183,13 +223,16 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
  * Resolve uma ação de intenção em um plano, sem mutar o engine.
  *
  * @param eng Engine de onde ler playing, loop e hot cues.
- * @param browse Cursor da biblioteca.
+ * @param browseByDeck Cursor da biblioteca por deck.
+ * @param getMasterDeck Deck cujo encoder BROWSE move a lista central.
  * @param action Ação crua do mouse ou do MIDI.
  */
 export function resolveMixerAction(
   eng: MixerEngine,
-  browse: BrowseState,
+  browseByDeck: Record<DeckId, BrowseState>,
+  getMasterDeck: () => DeckId,
   action: MixerAction,
+  browseSource: BrowseSource = "local",
 ): ResolvedPlan {
   switch (action.type) {
     case "toggle":
@@ -208,6 +251,11 @@ export function resolveMixerAction(
           value: !eng.snapshot[action.id].cueMonitor,
         },
       };
+    case "toggleMasterCue":
+      return {
+        kind: "absolute",
+        action: { type: "masterCue", value: !eng.snapshot.masterCue },
+      };
     case "cuePress":
       return { kind: "engine-cue-press", id: action.id };
     case "cueRelease":
@@ -220,6 +268,24 @@ export function resolveMixerAction(
         return { kind: "noop" };
       }
       return { kind: "engine-loop", id: action.id };
+    case "setLoopIn":
+      return { kind: "engine-loop-in", id: action.id };
+    case "setLoopOut":
+      return { kind: "engine-loop-out", id: action.id };
+    case "loopHalve":
+      return { kind: "engine-loop-halve", id: action.id };
+    case "loopDouble":
+      return { kind: "engine-loop-double", id: action.id };
+    case "setBeatLoop":
+      return { kind: "engine-beat-loop", id: action.id, beats: action.beats };
+    case "jumpBeats":
+      return { kind: "engine-jump", id: action.id, beats: action.beats };
+    case "scratchBegin":
+      return { kind: "engine-scratch-begin", id: action.id };
+    case "scratchTick":
+      return { kind: "engine-scratch-tick", id: action.id, delta: action.delta };
+    case "scratchEnd":
+      return { kind: "engine-scratch-end", id: action.id };
     case "hotCuePad": {
       const cue = eng.snapshot[action.id].hotCues.find((item) => item.slot === action.slot);
       return {
@@ -233,14 +299,27 @@ export function resolveMixerAction(
     }
     case "nudge":
       return { kind: "engine-nudge", id: action.id, direction: action.direction };
-    case "browseMove":
-      return { kind: "browse-move", nextCursor: browse.getCursor() + action.delta };
-    case "browseHome":
-      return { kind: "browse-home", nextCursor: browse.masterTrackIndex() };
+    case "browseMove": {
+      const deckId = getMasterDeck();
+      const browse = browseByDeck[deckId];
+      return { kind: "browse-move", deckId, nextCursor: browse.getCursor() + action.delta };
+    }
+    case "browseHome": {
+      const deckId = getMasterDeck();
+      const browse = browseByDeck[deckId];
+      return { kind: "browse-home", deckId, nextCursor: browse.masterTrackIndex() };
+    }
     case "browseLoad":
-      return { kind: "ui-op", op: { kind: "armFilePicker", deckId: action.id } };
+      return resolveLoadPlan(browseByDeck[action.id], action.id, browseSource, "arm");
     case "requestDeckLoad":
-      return { kind: "ui-op", op: { kind: "openFilePicker", deckId: action.id } };
+      return resolveLoadPlan(
+        browseByDeck[action.id],
+        action.id,
+        action.source === "file" ? "local" : action.source === "library" ? "remote" : browseSource,
+        "open",
+      );
+    case "loadRemoteTrack":
+      return { kind: "ui-op", op: { kind: "loadRemoteTrack", deckId: action.id, trackId: action.trackId } };
     case "loadDeckFile":
       return { kind: "engine-file", id: action.id, file: action.file };
     default:
@@ -259,14 +338,20 @@ export function dispatchMixerAction(
   deps: MixerDispatchDeps,
   action: MixerAction,
 ): DispatchResult {
-  const plan = resolveMixerAction(deps.eng, deps.browse, action);
+  const plan = resolveMixerAction(
+    deps.eng,
+    deps.browseByDeck,
+    deps.getMasterDeck,
+    action,
+    deps.getBrowseSource?.() ?? "local",
+  );
 
   switch (plan.kind) {
     case "noop":
       return { kind: "noop" };
     case "browse-move":
     case "browse-home":
-      deps.browse.setCursor(plan.nextCursor);
+      deps.browseByDeck[plan.deckId].setCursor(plan.nextCursor);
       return { kind: "ui-only" };
     case "absolute":
       deps.dispatchReducer(plan.action);
@@ -279,6 +364,42 @@ export function dispatchMixerAction(
     }
     case "engine-loop":
       deps.eng.toggleLoop(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-loop-in":
+      deps.eng.setLoopIn(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-loop-out":
+      deps.eng.setLoopOut(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-loop-halve":
+      deps.eng.loopHalve(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-loop-double":
+      deps.eng.loopDouble(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-beat-loop":
+      deps.eng.setBeatLoop(plan.id, plan.beats);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-jump":
+      deps.eng.jumpBeats(plan.id, plan.beats);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-scratch-begin":
+      deps.eng.scratchBegin(plan.id);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-scratch-tick":
+      deps.eng.scratchTick(plan.id, plan.delta);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-scratch-end":
+      deps.eng.scratchEnd(plan.id);
       deps.dispatchReducer({ type: "refresh" });
       return { kind: "refresh" };
     case "engine-nudge":
@@ -319,6 +440,34 @@ export function dispatchMixerAction(
 export function createMixerDispatch(deps: MixerDispatchDeps): MixerDispatch {
   return (action) => {
     dispatchMixerAction(deps, action);
+  };
+}
+
+/**
+ * LOAD local abre o picker; LOAD remoto resolve o track_id do cursor.
+ *
+ * @param browse Estado do encoder.
+ * @param deckId Deck destino.
+ * @param source Fonte ativa, já resolvida pelo caller.
+ * @param localKind Gesto local: armar o input ou abrir o diálogo.
+ */
+function resolveLoadPlan(
+  browse: BrowseState,
+  deckId: DeckId,
+  source: BrowseSource,
+  localKind: "arm" | "open",
+): ResolvedPlan {
+  if (source === "remote") {
+    const trackId = browse.resolveTrackId(browse.getCursor());
+    if (!trackId) return { kind: "noop" };
+    return { kind: "ui-op", op: { kind: "loadRemoteTrack", deckId, trackId } };
+  }
+  return {
+    kind: "ui-op",
+    op:
+      localKind === "arm"
+        ? { kind: "armFilePicker", deckId }
+        : { kind: "openFilePicker", deckId },
   };
 }
 

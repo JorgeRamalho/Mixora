@@ -16,9 +16,14 @@ import type { DeckId, TrainingTrack } from "../types/mixer";
 const TRAINING_GRIDS = {
   "radio-spotify-01": "HOUSE · 4/4",
   "radio-spotify-02": "PROG · 4/4",
+  "radio-spotify-03": "ANTHEM · 4/4",
   "radio-deezer-01": "ELECTRO · 4/4",
   "radio-deezer-02": "ANTHEM · 4/4",
   "radio-youtube-01": "PROG · LONG",
+  "radio-soundcloud-01": "UKG · 4/4",
+  "radio-soundcloud-02": "MELODIC · 4/4",
+  "radio-beatport-01": "HOUSE · 4/4",
+  "radio-beatport-02": "PROG · LONG",
 } as const;
 
 /** Id de uma faixa que a biblioteca de treino realmente contém. */

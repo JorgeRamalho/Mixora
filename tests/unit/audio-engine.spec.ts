@@ -154,13 +154,17 @@ describe("MamuteEngine — applyGains (G1–G6)", () => {
     expect(engine.__test__.master()?.gain.value).toBe(0.3);
   });
 
-  test("G6 booth e cueMix só gravam snapshot, sem nó de áudio", async () => {
+  test("G6 booth, cueMix e masterCue movem o grafo de fone", async () => {
     ({ engine } = await createTestEngine());
     engine.setBooth(0.11);
     engine.setCueMix(0.22);
+    engine.setMasterCue(true);
     expect(engine.snapshot.booth).toBe(0.11);
     expect(engine.snapshot.cueMix).toBe(0.22);
-    expect(engine.__test__.master()?.gain.value).toBe(engine.snapshot.master);
+    expect(engine.snapshot.masterCue).toBe(true);
+    expect(engine.__test__.headphonesGain()?.gain.value).toBe(0.11);
+    expect(engine.__test__.cueMasterGain()?.gain.value).toBe(1);
+    expect(engine.__test__.cuePflGain()?.gain.value).toBe(0);
   });
 });
 
@@ -443,7 +447,7 @@ describe("MamuteEngine — phase loop (PH1–PH5)", () => {
     expect(engine.snapshot.a.phase).toBeLessThan(1);
   });
 
-  test.todo("PH5 loop ativo recorta o playback ao IN/OUT (onda 8) — parcial via loopStart/loopEnd em arquivo");
+  test.todo("PH5 loop ativo recorta o playback ao IN/OUT em arquivo e sintético");
 });
 
 describe("MamuteEngine — demais métodos públicos", () => {
@@ -454,15 +458,14 @@ describe("MamuteEngine — demais métodos públicos", () => {
     expect(engine.analyser("a")).toBeTruthy();
   });
 
-  test("setEq, kill, trim e filter atualizam snapshot e nós", async () => {
+  test("setEq, trim e filter atualizam snapshot e nós", async () => {
     ({ engine } = await createTestEngine());
     engine.setEq("a", "high", 6);
-    engine.setEqKill("a", "low", true);
     engine.setTrim("a", 0.5);
     engine.setFilter("a", -40);
     const nodes = engine.__test__.decks()?.a;
     expect(nodes?.high.gain.value).toBe(6);
-    expect(nodes?.low.gain.value).toBe(-40);
+    expect(nodes?.low.gain.value).toBe(0);
     expect(nodes?.trim.gain.value).toBe(0.5);
     expect(nodes?.filter.type).toBe("lowpass");
     engine.setFilter("a", 80);
@@ -471,7 +474,7 @@ describe("MamuteEngine — demais métodos públicos", () => {
     expect(engine.__test__.decks()?.a.filter.frequency.value).toBe(20000);
   });
 
-  test("setCueMonitor, jog e quantize só tocam snapshot", async () => {
+  test("setCueMonitor, jog e quantize atualizam snapshot e roteamento", async () => {
     ({ engine } = await createTestEngine());
     engine.setCueMonitor("a", true);
     engine.setJogMode("a", "vinyl");
@@ -479,6 +482,7 @@ describe("MamuteEngine — demais métodos públicos", () => {
     expect(engine.snapshot.a.cueMonitor).toBe(true);
     expect(engine.snapshot.a.jogMode).toBe("vinyl");
     expect(engine.snapshot.a.quantize).toBe(false);
+    expect(engine.__test__.decks()?.a.cueSend.gain.value).toBeGreaterThan(0);
   });
 
   test("hot cue grava e dispara, e slot vazio é no-op", async () => {

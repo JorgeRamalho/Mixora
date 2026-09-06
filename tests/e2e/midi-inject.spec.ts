@@ -272,11 +272,12 @@ test.describe("transporte por inject", () => {
     await send14(page, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0x40, 0x00);
     await expect(pitch).toHaveValue("0");
 
-    // Topo do curso manda zero e vale +8%, e por isso o teste falharia com −8
-    // se alguém trocasse `tempoToBipolarUnit` por `bipolarUnit14Bit`.
+    // Topo do curso manda zero MIDI e vale −8% no engine; o slider virtual inverte o
+    // value no DOM para o thumb subir junto com o fader físico.
     await send14(page, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0x00, 0x00);
     await expect(pitch).toHaveValue("8");
-    await expect(page.getByRole("region", { name: "Deck A" })).toContainText("8.0%");
+    await expect(page.getByRole("region", { name: "Deck A" })).toHaveAttribute("data-pitch", "-8.00");
+    await expect(page.getByRole("region", { name: "Deck A" })).toContainText("-8.0%");
   });
 
   test("o jog empurra a fase, e a roda solta pede quatro vezes mais gesto", async ({ page }) => {
@@ -370,7 +371,7 @@ test.describe("transporte por inject", () => {
     expect(depois.title).not.toBe(partida.title);
 
     await expect(page.getByLabel("Volume deck A")).toHaveValue("0.5");
-    await expect(page.getByLabel("Track deck A").locator("option:checked")).not.toContainText(
+    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).not.toContainText(
       depois.title,
     );
   });
@@ -392,12 +393,12 @@ test.describe("transporte por inject", () => {
     expect((await readBrowse(page)).position).toBe(partida.total);
   });
 
-  test("o LOAD joga a faixa destacada na deck, e o select da tela acompanha", async ({ page }) => {
+  test("o LOAD joga a faixa destacada na deck, e a playlist da tela acompanha", async ({ page }) => {
     await spinEncoder(page, 2);
     const destacada = await readBrowse(page);
 
     await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a);
-    await expect(page.getByLabel("Track deck A").locator("option:checked")).toContainText(
+    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
       destacada.title,
     );
 
@@ -406,10 +407,10 @@ test.describe("transporte por inject", () => {
     await spinEncoder(page, 1);
     const outra = await readBrowse(page);
     await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.b);
-    await expect(page.getByLabel("Track deck B").locator("option:checked")).toContainText(
+    await expect(page.getByLabel("Faixas deck B").getByRole("option", { selected: true })).toContainText(
       outra.title,
     );
-    await expect(page.getByLabel("Track deck A").locator("option:checked")).toContainText(
+    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
       destacada.title,
     );
   });
@@ -428,7 +429,7 @@ test.describe("transporte por inject", () => {
 
     const destino = await readBrowse(page);
     expect(destino.position).toBe((partida.position % partida.total) + 1);
-    await expect(page.getByLabel("Track deck A").locator("option:checked")).toContainText(
+    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
       destino.title,
     );
   });

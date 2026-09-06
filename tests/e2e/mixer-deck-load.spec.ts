@@ -19,7 +19,12 @@ test.describe("P4 load de arquivo no deck", () => {
   });
 
   test("E01 LOAD virtual deck A", async ({ page }) => {
-    await expect(page.getByRole("button", { name: "Carregar deck A" })).toBeVisible();
+    await expect(page.getByLabel("Carregar deck A")).toBeVisible();
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByLabel("Carregar deck A").click(),
+    ]);
+    expect(chooser.isMultiple()).toBe(false);
     await uploadToDeck(page, "a");
     await expect(page.locator(".cdj-deck[data-deck='a']")).toContainText("mixer-kick-120bpm");
   });
@@ -116,6 +121,30 @@ test.describe("P4 load de arquivo no deck", () => {
     await expect(page.getByRole("button", { name: "Cue monitor deck A" })).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+  });
+
+  test("E15 LOAD deck B com arm MIDI no A não desvia para o deck A", async ({ page }) => {
+    await inject(page, [
+      [DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a, 0x7f],
+      [DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a, 0x00],
+    ]);
+    await expect(page.locator(".cdj-deck[data-deck='a']")).toHaveAttribute(
+      "data-load-pending",
+      "true",
+    );
+
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByLabel("Carregar deck B").click(),
+    ]);
+    expect(chooser.isMultiple()).toBe(false);
+    await chooser.setFiles(MIXER_KICK_FIXTURE);
+
+    await expect(page.locator(".cdj-deck[data-deck='b']")).toHaveAttribute("data-source-kind", "file");
+    await expect(page.locator(".cdj-deck[data-deck='a']")).toHaveAttribute(
+      "data-source-kind",
+      "synthetic",
     );
   });
 });

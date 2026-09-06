@@ -11,7 +11,7 @@
  * `nudge` é sensação de prato, e não protocolo.
  */
 
-import { bipolarUnit14Bit, tempoToBipolarUnit, unit14Bit } from "./ddj-400-protocol";
+import { bipolarUnit14Bit, unit14Bit } from "./ddj-400-protocol";
 
 const TRIM_MIN = 0.2;
 const TRIM_SPAN = 0.8;
@@ -102,14 +102,14 @@ export function scaleFilter(msb: number, lsb: number): number {
 /**
  * Leva o tempo fader para o pitch da cabine, −8% a +8%.
  *
- * Usa `tempoToBipolarUnit`, e **não** `bipolarUnit14Bit`, porque o fader é
- * invertido, ou seja, o topo manda 0 e portanto o topo é +8%.
+ * Usa `bipolarUnit14Bit`, porque na DDJ-400 o topo do curso manda zero MIDI e
+ * portanto vale −8%, ao passo que o fundo manda o máximo e vale +8%.
  *
  * @param msb Byte mais significativo, de 0 a 127.
  * @param lsb Byte menos significativo, de 0 a 127.
  */
 export function scalePitch(msb: number, lsb: number): number {
-  return roundTo(tempoToBipolarUnit(msb, lsb) * PITCH_RANGE, PITCH_DECIMALS);
+  return roundTo(bipolarUnit14Bit(msb, lsb) * PITCH_RANGE, PITCH_DECIMALS);
 }
 
 /**

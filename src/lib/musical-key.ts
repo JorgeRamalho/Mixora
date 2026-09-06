@@ -83,6 +83,65 @@ export function getCamelotKey(code: string): CamelotKey | undefined {
   return CAMELOT_BY_CODE[`${parsed.hour}${parsed.letter}`];
 }
 
+/**
+ * Normaliza um código Camelot para o formato canônico `8A`.
+ *
+ * @param code Tom vindo do deck, da API ou do browse.
+ */
+export function normalizeCamelotCode(code: string): string | null {
+  const parsed = parseCamelot(code);
+  if (!parsed) return null;
+  return `${parsed.hour}${parsed.letter}`;
+}
+
+/**
+ * Verifica se o tom da faixa coincide exatamente com o filtro Camelot.
+ *
+ * @param trackKey Tom da faixa na biblioteca.
+ * @param filterCode Código Camelot escolhido na roda.
+ */
+export function matchesCamelotKey(trackKey: string | null | undefined, filterCode: string): boolean {
+  return matchesCamelotFilter(trackKey, filterCode, "exact");
+}
+
+/**
+ * Códigos Camelot compatíveis com mix harmônico: vizinhos, relativo e o próprio tom.
+ *
+ * @param code Tom de referência, por exemplo `8A`.
+ */
+export function compatibleCamelotCodes(code: string): string[] {
+  const normalized = normalizeCamelotCode(code);
+  if (!normalized) return [];
+  const codes = new Set<string>([normalized]);
+  const relative = relativeCamelot(normalized);
+  const prev = neighborCamelot(normalized, -1);
+  const next = neighborCamelot(normalized, 1);
+  if (relative) codes.add(relative);
+  if (prev) codes.add(prev);
+  if (next) codes.add(next);
+  return [...codes];
+}
+
+/**
+ * Filtra faixas por tom Camelot no modo exato ou compatível.
+ *
+ * @param trackKey Tom da faixa na biblioteca.
+ * @param filterCode Código escolhido na roda.
+ * @param mode `exact` ou `compatible`, alinhado ao GET /api/tracks.
+ */
+export function matchesCamelotFilter(
+  trackKey: string | null | undefined,
+  filterCode: string,
+  mode: "exact" | "compatible" = "exact",
+): boolean {
+  const filter = normalizeCamelotCode(filterCode);
+  if (!filter || !trackKey) return false;
+  const track = normalizeCamelotCode(trackKey);
+  if (!track) return false;
+  if (mode === "exact") return track === filter;
+  return compatibleCamelotCodes(filter).includes(track);
+}
+
 export function otherCamelotLetter(letter: CamelotLetter): CamelotLetter {
   return letter === "A" ? "B" : "A";
 }

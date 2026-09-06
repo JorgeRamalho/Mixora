@@ -35,6 +35,7 @@ let snapshot: MidiSessionSnapshot = {
 };
 
 let access: MIDIAccess | null = null;
+let output: MIDIOutput | null = null;
 let stops: Array<() => void> = [];
 let startPromise: Promise<void> | null = null;
 let attachChain: Promise<void> = Promise.resolve();
@@ -180,8 +181,31 @@ export function subscribeMidiStatus(listener: StatusListener): () => void {
 }
 
 /**
- * Abre a Web MIDI uma vez por carregamento da página.
+ * Escolhe a porta de saída da DDJ-400 para espelhar LEDs.
+ *
+ * @param midi Resultado de `requestMIDIAccess`.
  */
+export function selectDdj400Output(midi: MIDIAccess): MIDIOutput | null {
+  const outputs = [...midi.outputs.values()];
+  const named = outputs.filter((port) => isDdj400PortName(port.name, port.manufacturer));
+  if (named.length > 0) return named[0] ?? null;
+  if (outputs.length === 1) return outputs[0] ?? null;
+  return null;
+}
+
+/**
+ * Envia bytes pela porta de saída aberta, se houver.
+ *
+ * @param bytes Mensagem MIDI de três bytes ou mais.
+ */
+export function sendMidiOutput(bytes: number[]): void {
+  if (!output) return;
+  try {
+    output.send(bytes);
+  } catch {
+    output = null;
+  }
+}
 export async function startMidiSession(): Promise<void> {
   if (!isMidiApiAvailable()) {
     publish({ status: "unavailable", error: null });
@@ -250,8 +274,10 @@ function attachPorts(midi: MIDIAccess): Promise<void> {
 
 async function runAttach(midi: MIDIAccess): Promise<void> {
   await releasePorts();
+  output = null;
   const names = listMidiInputNames(midi);
   const chosen = selectDdj400Inputs(midi);
+  const chosenOutput = selectDdj400Output(midi);
   if (chosen.length === 0) {
     publish({
       status: "disconnected",
@@ -279,6 +305,15 @@ async function runAttach(midi: MIDIAccess): Promise<void> {
     }
   }
 
+  if (chosenOutput) {
+    try {
+      await chosenOutput.open();
+      output = chosenOutput;
+    } catch {
+      output = null;
+    }
+  }
+
   publish({
     status: "connected",
     deviceName: chosen
@@ -292,6 +327,14 @@ async function runAttach(midi: MIDIAccess): Promise<void> {
 async function releasePorts(): Promise<void> {
   for (const stop of stops) stop();
   stops = [];
+  if (output) {
+    try {
+      output.close();
+    } catch {
+      // A porta pode já ter sido fechada pelo SO.
+    }
+    output = null;
+  }
 }
 
 function publish(next: Partial<MidiSessionSnapshot>): void {

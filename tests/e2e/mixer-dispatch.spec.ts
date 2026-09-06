@@ -28,13 +28,13 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("cuePress e cueRelease vão direto ao engine", () => {
     const { eng } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
 
-    expect(resolveMixerAction(eng, browse, { type: "cuePress", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getMasterDeck, { type: "cuePress", id: "a" })).toEqual({
       kind: "engine-cue-press",
       id: "a",
     });
-    expect(resolveMixerAction(eng, browse, { type: "cueRelease", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getMasterDeck, { type: "cueRelease", id: "a" })).toEqual({
       kind: "engine-cue-release",
       id: "a",
     });
@@ -42,11 +42,12 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("toggleSync inverte o sync absoluto uma vez", () => {
     const { eng, calls } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
     const received: MixerAction[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browse,
+      browseByDeck: idle.browseByDeck,
+      getMasterDeck: idle.getMasterDeck,
       dispatchReducer: (action) => {
         received.push(action);
         applyAbsoluteAction(eng, action);
@@ -64,11 +65,12 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("loopOn e loopOff só chamam toggle quando o estado muda", () => {
     const { eng, calls } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
     const received: MixerAction[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browse,
+      browseByDeck: idle.browseByDeck,
+      getMasterDeck: idle.getMasterDeck,
       dispatchReducer: (action) => received.push(action),
     });
 
@@ -91,12 +93,13 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("browseLoad arma o picker de arquivo do deck", () => {
     const { eng } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
     const ops: Array<{ kind: string; deckId?: string }> = [];
     const result = dispatchMixerAction(
       {
         eng,
-        browse,
+        browseByDeck: idle.browseByDeck,
+        getMasterDeck: idle.getMasterDeck,
         dispatchReducer: () => undefined,
         onUiOp: (op) => ops.push(op),
       },
@@ -110,17 +113,28 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
   test("browseMove envolve o cursor nos extremos da lista", () => {
     const { eng } = createFakeEngine();
     let cursor = 0;
-    const browse = createBrowseState({
-      tracks: TRAINING_TRACKS,
-      getCursor: () => cursor,
-      setCursor: (index) => {
-        cursor = index;
-      },
-      snapshot: () => eng.snapshot,
-    });
+    const browseByDeck = {
+      a: createBrowseState({
+        tracks: TRAINING_TRACKS,
+        getCursor: () => cursor,
+        setCursor: (index) => {
+          cursor = index;
+        },
+        snapshot: () => eng.snapshot,
+      }),
+      b: createBrowseState({
+        tracks: TRAINING_TRACKS,
+        getCursor: () => cursor,
+        setCursor: (index) => {
+          cursor = index;
+        },
+        snapshot: () => eng.snapshot,
+      }),
+    };
     const dispatch = createMixerDispatch({
       eng,
-      browse,
+      browseByDeck,
+      getMasterDeck: () => "a",
       dispatchReducer: () => {
         throw new Error("browse não pode tocar no reducer");
       },
@@ -144,11 +158,12 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("U-07 requestDeckLoad emite openFilePicker", () => {
     const { eng } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
     const ops: { kind: string }[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browse,
+      browseByDeck: idle.browseByDeck,
+      getMasterDeck: idle.getMasterDeck,
       dispatchReducer: () => undefined,
       onUiOp: (op) => ops.push(op),
     });
@@ -158,11 +173,12 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
 
   test("U-08 loadDeckFile chama loadDeckFile 1×", () => {
     const { eng, calls } = createFakeEngine();
-    const browse = createIdleBrowse();
+    const idle = createIdleBrowse();
     const file = new File([new Uint8Array(32)], "kick.mp3");
     const dispatch = createMixerDispatch({
       eng,
-      browse,
+      browseByDeck: idle.browseByDeck,
+      getMasterDeck: idle.getMasterDeck,
       dispatchReducer: () => undefined,
     });
     dispatch({ type: "loadDeckFile", id: "a", file });
@@ -192,7 +208,6 @@ function stubDeck(id: DeckId): DeckState {
     gain: 0.85,
     trim: 0.72,
     eq: { high: 0, mid: 0, low: 0 },
-    eqKill: { high: false, mid: false, low: false },
     filter: 0,
     sync: false,
     masterTempo: id === "a",
@@ -230,7 +245,6 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
     setTrim: () => calls.push("setTrim"),
     setFilter: () => calls.push("setFilter"),
     setEq: () => calls.push("setEq"),
-    setEqKill: () => calls.push("setEqKill"),
     setCrossfader: () => calls.push("setCrossfader"),
     setMaster: () => calls.push("setMaster"),
     setBooth: () => calls.push("setBooth"),
@@ -275,14 +289,19 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
   return { eng, calls };
 }
 
-function createIdleBrowse() {
+function createIdleBrowse(snapshot: () => MixerSnapshot = () => createFakeEngine().eng.snapshot) {
   let cursor = 0;
-  return createBrowseState({
+  const browse = createBrowseState({
     tracks: TRAINING_TRACKS,
     getCursor: () => cursor,
     setCursor: (index) => {
       cursor = index;
     },
-    snapshot: () => createFakeEngine().eng.snapshot,
+    snapshot,
   });
+  return {
+    browseByDeck: { a: browse, b: browse },
+    getMasterDeck: () => "a" as DeckId,
+    readCursor: () => cursor,
+  };
 }

@@ -61,7 +61,6 @@ function createDeck(id: DeckId): DeckState {
     gain: 0.85,
     trim: 0.72,
     eq: { high: 0, mid: 0, low: 0 },
-    eqKill: { high: false, mid: false, low: false },
     filter: 0,
     sync: false,
     masterTempo: id === "a",
@@ -149,6 +148,7 @@ class DeckNodes {
   source: AudioBufferSourceNode | null = null;
   trim: GainNode;
   gain: GainNode;
+  cueSend: GainNode;
   filter: BiquadFilterNode;
   high: BiquadFilterNode;
   mid: BiquadFilterNode;
@@ -159,10 +159,20 @@ class DeckNodes {
   pausedPhase = 0;
   /** True enquanto o CUE momentâneo toca com o deck pausado. */
   cuePreview = false;
+  /** True enquanto o prato está tocado no modo vinyl. */
+  scratching = false;
 
-  constructor(ctx: AudioContext, destination: AudioNode) {
+  /**
+   * Monta a cadeia EQ do deck e liga o master e o bus de cue.
+   *
+   * @param ctx Contexto Web Audio.
+   * @param masterDest Crossfader do deck.
+   * @param cueSum Soma dos envios PFL.
+   */
+  constructor(ctx: AudioContext, masterDest: AudioNode, cueSum: AudioNode) {
     this.trim = ctx.createGain();
     this.gain = ctx.createGain();
+    this.cueSend = ctx.createGain();
     this.filter = ctx.createBiquadFilter();
     this.high = ctx.createBiquadFilter();
     this.mid = ctx.createBiquadFilter();
@@ -179,13 +189,16 @@ class DeckNodes {
     this.low.type = "lowshelf";
     this.low.frequency.value = 180;
     this.analyser.fftSize = 512;
+    this.cueSend.gain.value = 0;
     this.trim.connect(this.filter);
     this.filter.connect(this.low);
     this.low.connect(this.mid);
     this.mid.connect(this.high);
     this.high.connect(this.gain);
     this.gain.connect(this.analyser);
-    this.analyser.connect(destination);
+    this.analyser.connect(masterDest);
+    this.gain.connect(this.cueSend);
+    this.cueSend.connect(cueSum);
   }
 }
 
@@ -195,6 +208,13 @@ export class MamuteEngine {
   private master: GainNode | null = null;
   private xfA: GainNode | null = null;
   private xfB: GainNode | null = null;
+  private cueSum: GainNode | null = null;
+  private cuePflGain: GainNode | null = null;
+  private cueMasterGain: GainNode | null = null;
+  private cueMixBus: GainNode | null = null;
+  private headphonesGain: GainNode | null = null;
+  private cueStreamDest: MediaStreamAudioDestinationNode | null = null;
+  private cueAudioEl: HTMLAudioElement | null = null;
   private decks: { a: DeckNodes; b: DeckNodes } | null = null;
   private phaseTimer: number | null = null;
   snapshot: MixerSnapshot = {
@@ -204,6 +224,7 @@ export class MamuteEngine {
     master: 0.82,
     booth: 0.65,
     cueMix: 0.5,
+    masterCue: false,
     masterDeck: "a",
   };
 
@@ -231,6 +252,9 @@ export class MamuteEngine {
       master: () => this.master,
       xfA: () => this.xfA,
       xfB: () => this.xfB,
+      cuePflGain: () => this.cuePflGain,
+      cueMasterGain: () => this.cueMasterGain,
+      headphonesGain: () => this.headphonesGain,
       phaseTimer: () => this.phaseTimer,
       stopPhaseLoop: () => {
         if (this.phaseTimer === null) return;
@@ -240,6 +264,13 @@ export class MamuteEngine {
     };
   }
 
+  /**
+   * Contexto Web Audio depois do `ensure`. Null até a cabine despertar o grafo.
+   */
+  audioContext(): AudioContext | null {
+    return this.ctx;
+  }
+
   async ensure(): Promise<void> {
     if (this.ctx) return;
     const ctx = this.createAudioContext();
@@ -247,19 +278,62 @@ export class MamuteEngine {
     this.master = ctx.createGain();
     this.xfA = ctx.createGain();
     this.xfB = ctx.createGain();
+    this.cueSum = ctx.createGain();
+    this.cuePflGain = ctx.createGain();
+    this.cueMasterGain = ctx.createGain();
+    this.cueMixBus = ctx.createGain();
+    this.headphonesGain = ctx.createGain();
     this.xfA.connect(this.master);
     this.xfB.connect(this.master);
     this.master.connect(ctx.destination);
+    this.cueSum.connect(this.cuePflGain);
+    this.master.connect(this.cueMasterGain);
+    this.cuePflGain.connect(this.cueMixBus);
+    this.cueMasterGain.connect(this.cueMixBus);
+    this.cueMixBus.connect(this.headphonesGain);
+    this.headphonesGain.connect(ctx.destination);
     this.decks = {
-      a: new DeckNodes(ctx, this.xfA),
-      b: new DeckNodes(ctx, this.xfB),
+      a: new DeckNodes(ctx, this.xfA, this.cueSum),
+      b: new DeckNodes(ctx, this.xfB, this.cueSum),
     };
     this.rebuildBuffer("a");
     this.rebuildBuffer("b");
     this.applyGains();
+    this.applyCueRouting();
     this.applyDeck("a");
     this.applyDeck("b");
     this.startPhaseLoop();
+  }
+
+  /**
+   * Aponta o bus de cue para um dispositivo de saída via `setSinkId`.
+   *
+   * @param deviceId Id do `enumerateDevices` ou `null` para voltar ao destino padrão.
+   */
+  async setCueSinkId(deviceId: string | null): Promise<void> {
+    await this.ensure();
+    if (!this.ctx || !this.headphonesGain) return;
+    if (!deviceId) {
+      this.headphonesGain.disconnect();
+      this.headphonesGain.connect(this.ctx.destination);
+      if (this.cueAudioEl) {
+        this.cueAudioEl.pause();
+        this.cueAudioEl.srcObject = null;
+      }
+      return;
+    }
+    if (!this.cueStreamDest) {
+      this.cueStreamDest = this.ctx.createMediaStreamDestination();
+      this.cueAudioEl = new Audio();
+      this.cueAudioEl.srcObject = this.cueStreamDest.stream;
+    }
+    const cueDest = this.cueStreamDest;
+    const cueAudio = this.cueAudioEl;
+    if (!cueDest || !cueAudio) return;
+    this.headphonesGain.disconnect();
+    this.headphonesGain.connect(cueDest);
+    await cueAudio.setSinkId(deviceId);
+    await cueAudio.play();
   }
 
   analyser(id: DeckId): AnalyserNode | null {
@@ -315,7 +389,8 @@ export class MamuteEngine {
     this.snapshot[id].sourceKind = "file";
     this.snapshot[id].durationSec = buffer.duration;
     this.snapshot[id].positionSec = 0;
-    this.snapshot[id].peaks = computePeaks(buffer, 512);
+    this.snapshot[id].peaks =
+      meta.peaks && meta.peaks.length > 0 ? meta.peaks : computePeaks(buffer, 512);
     this.snapshot[id].track = {
       id: `file:${meta.title}`,
       title: meta.title,
@@ -384,11 +459,6 @@ export class MamuteEngine {
     this.applyEq(id);
   }
 
-  setEqKill(id: DeckId, band: keyof DeckState["eqKill"], value: boolean): void {
-    this.snapshot[id].eqKill[band] = value;
-    this.applyEq(id);
-  }
-
   setTrim(id: DeckId, value: number): void {
     this.snapshot[id].trim = value;
     if (this.decks?.[id].trim) this.decks[id].trim.gain.value = value;
@@ -416,10 +486,17 @@ export class MamuteEngine {
 
   setBooth(value: number): void {
     this.snapshot.booth = value;
+    this.applyCueRouting();
   }
 
   setCueMix(value: number): void {
     this.snapshot.cueMix = value;
+    this.applyCueRouting();
+  }
+
+  setMasterCue(enabled: boolean): void {
+    this.snapshot.masterCue = enabled;
+    this.applyCueRouting();
   }
 
   setSync(id: DeckId, enabled: boolean): void {
@@ -437,6 +514,7 @@ export class MamuteEngine {
 
   setCueMonitor(id: DeckId, enabled: boolean): void {
     this.snapshot[id].cueMonitor = enabled;
+    this.applyCueRouting();
   }
 
   setJogMode(id: DeckId, mode: JogMode): void {
@@ -448,7 +526,7 @@ export class MamuteEngine {
   }
 
   setCueBeat(id: DeckId, beat: number): void {
-    this.snapshot[id].cueBeat = beat;
+    this.snapshot[id].cueBeat = this.quantizeBeat(id, beat);
   }
 
   callCue(id: DeckId): void {
@@ -508,8 +586,9 @@ export class MamuteEngine {
   toggleLoop(id: DeckId): void {
     const loop = this.snapshot[id].loop;
     if (!loop.active) {
-      loop.inBeat = this.phaseToBeat(id, this.snapshot[id].phase);
-      loop.outBeat = loop.inBeat + 4;
+      const beat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
+      loop.inBeat = beat;
+      loop.outBeat = beat + 4;
       loop.active = true;
       if (this.snapshot[id].playing) this.restart(id);
       return;
@@ -520,11 +599,151 @@ export class MamuteEngine {
     if (this.snapshot[id].playing) this.restart(id);
   }
 
+  /**
+   * Grava o ponto de loop IN na posição atual, quantizado se o flag estiver ligado.
+   *
+   * @param id Deck que recebeu LOOP IN.
+   */
+  setLoopIn(id: DeckId): void {
+    const loop = this.snapshot[id].loop;
+    loop.inBeat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
+    if (loop.outBeat !== null && loop.outBeat <= loop.inBeat) {
+      loop.outBeat = loop.inBeat + 4;
+    }
+    loop.active = true;
+    if (this.snapshot[id].playing) this.restart(id);
+  }
+
+  /**
+   * Grava o ponto de loop OUT na posição atual, quantizado se o flag estiver ligado.
+   *
+   * @param id Deck que recebeu LOOP OUT.
+   */
+  setLoopOut(id: DeckId): void {
+    const loop = this.snapshot[id].loop;
+    const beat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
+    loop.outBeat = beat;
+    if (loop.inBeat === null) {
+      loop.inBeat = Math.max(0, beat - 4);
+    }
+    if (loop.outBeat <= loop.inBeat) {
+      loop.outBeat = loop.inBeat + 4;
+    }
+    loop.active = true;
+    if (this.snapshot[id].playing) this.restart(id);
+  }
+
+  /**
+   * Encolhe o loop ativo pela metade, mantendo o ponto IN.
+   *
+   * @param id Deck com loop ligado.
+   */
+  loopHalve(id: DeckId): void {
+    const loop = this.snapshot[id].loop;
+    if (!loop.active || loop.inBeat === null || loop.outBeat === null) return;
+    const span = loop.outBeat - loop.inBeat;
+    loop.outBeat = loop.inBeat + span / 2;
+    if (this.snapshot[id].playing) this.restart(id);
+  }
+
+  /**
+   * Dobra a duração do loop ativo a partir do ponto IN.
+   *
+   * @param id Deck com loop ligado.
+   */
+  loopDouble(id: DeckId): void {
+    const loop = this.snapshot[id].loop;
+    if (!loop.active || loop.inBeat === null || loop.outBeat === null) return;
+    const span = loop.outBeat - loop.inBeat;
+    loop.outBeat = loop.inBeat + span * 2;
+    if (this.snapshot[id].playing) this.restart(id);
+  }
+
+  /**
+   * Liga um loop de N beats a partir da posição atual.
+   *
+   * @param id Deck destino.
+   * @param beats Duração do loop em beats.
+   */
+  setBeatLoop(id: DeckId, beats: number): void {
+    const loop = this.snapshot[id].loop;
+    const inBeat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
+    loop.inBeat = inBeat;
+    loop.outBeat = inBeat + beats;
+    loop.active = true;
+    if (this.snapshot[id].playing) this.restart(id);
+  }
+
+  /**
+   * Salta o playhead N beats à frente ou para trás.
+   *
+   * @param id Deck a mover.
+   * @param beats Delta em beats, positivo ou negativo.
+   */
+  jumpBeats(id: DeckId, beats: number): void {
+    const deck = this.snapshot[id];
+    const current = this.phaseToBeat(id, deck.phase);
+    const next = Math.max(0, current + beats);
+    deck.phase = this.beatToPhase(id, next);
+    deck.positionSec = this.beatToSeconds(id, next);
+    if (deck.playing) this.restart(id);
+  }
+
+  /**
+   * Marca o início de um gesto de scratch vinyl no prato.
+   *
+   * @param id Deck cujo prato foi tocado.
+   */
+  scratchBegin(id: DeckId): void {
+    const nodes = this.decks?.[id];
+    if (nodes) nodes.scratching = true;
+  }
+
+  /**
+   * Desloca o playhead durante o scratch vinyl.
+   *
+   * @param id Deck em scratch.
+   * @param delta Deslocamento relativo do prato.
+   */
+  scratchTick(id: DeckId, delta: number): void {
+    const nodes = this.decks?.[id];
+    if (!nodes?.scratching || this.snapshot[id].jogMode !== "vinyl") return;
+    this.seek(id, this.snapshot[id].phase + delta);
+  }
+
+  /**
+   * Encerra o gesto de scratch vinyl.
+   *
+   * @param id Deck que soltou o prato.
+   */
+  scratchEnd(id: DeckId): void {
+    const nodes = this.decks?.[id];
+    if (nodes) nodes.scratching = false;
+  }
+
+  /**
+   * Reposiciona o playhead na fase indicada e reinicia o source se necessário.
+   *
+   * @param id Deck a reposicionar.
+   * @param phase Posição normalizada de 0 a 1.
+   */
+  seek(id: DeckId, phase: number): void {
+    const deck = this.snapshot[id];
+    deck.phase = ((phase % 1) + 1) % 1;
+    deck.positionSec = deck.phase * (deck.durationSec || this.decks?.[id].buffer?.duration || 1);
+    if (deck.playing) this.restart(id);
+  }
+
   nudge(id: DeckId, direction: -1 | 1): void {
     const deck = this.snapshot[id];
+    const nodes = this.decks?.[id];
+    if (deck.jogMode === "vinyl" && nodes?.scratching) {
+      this.scratchTick(id, direction * 0.0035);
+      return;
+    }
     const bump = direction * (deck.jogMode === "vinyl" ? 0.035 : 0.018);
     deck.phase = (deck.phase + bump + 1) % 1;
-    const source = this.decks?.[id].source;
+    const source = nodes?.source;
     if (source) {
       const rate = 1 + deck.pitch / 100 + direction * 0.04;
       source.playbackRate.value = rate;
@@ -532,6 +751,22 @@ export class MamuteEngine {
         if (source.playbackRate) source.playbackRate.value = 1 + deck.pitch / 100;
       }, 120);
     }
+  }
+
+  /**
+   * Arredonda um beat ao grid quando o quantize do deck está ligado.
+   *
+   * @param id Deck consultado.
+   * @param beat Valor bruto em beats ou segundos.
+   */
+  private quantizeBeat(id: DeckId, beat: number): number {
+    const deck = this.snapshot[id];
+    if (!deck.quantize) return beat;
+    if (deck.sourceKind === "file") {
+      const beatSec = 60 / deck.bpm;
+      return Math.round(beat / beatSec) * beatSec;
+    }
+    return Math.round(beat);
   }
 
   private beatToPhase(id: DeckId, beat: number): number {
@@ -564,9 +799,9 @@ export class MamuteEngine {
     const nodes = this.decks?.[id];
     const deck = this.snapshot[id];
     if (!nodes) return;
-    nodes.high.gain.value = deck.eqKill.high ? -40 : deck.eq.high;
-    nodes.mid.gain.value = deck.eqKill.mid ? -40 : deck.eq.mid;
-    nodes.low.gain.value = deck.eqKill.low ? -40 : deck.eq.low;
+    nodes.high.gain.value = deck.eq.high;
+    nodes.mid.gain.value = deck.eq.mid;
+    nodes.low.gain.value = deck.eq.low;
   }
 
   private applyFilter(id: DeckId): void {
@@ -612,8 +847,8 @@ export class MamuteEngine {
    */
   private shouldLoopBuffer(id: DeckId): boolean {
     const deck = this.snapshot[id];
-    if (deck.sourceKind === "synthetic") return true;
-    return deck.loop.active;
+    if (deck.loop.active) return true;
+    return deck.sourceKind === "synthetic";
   }
 
   /**
@@ -638,8 +873,7 @@ export class MamuteEngine {
   private applyLoopRegion(id: DeckId, source: AudioBufferSourceNode): void {
     const deck = this.snapshot[id];
     const duration = this.decks?.[id].buffer?.duration ?? deck.durationSec;
-    if (!this.shouldLoopBuffer(id) || deck.sourceKind !== "file") return;
-    if (deck.loop.inBeat === null || deck.loop.outBeat === null) return;
+    if (!deck.loop.active || deck.loop.inBeat === null || deck.loop.outBeat === null) return;
     const loopStart = this.beatToSeconds(id, deck.loop.inBeat);
     const loopEnd = Math.min(duration, this.beatToSeconds(id, deck.loop.outBeat));
     source.loopStart = loopStart;
@@ -784,6 +1018,35 @@ export class MamuteEngine {
       this.decks.b.gain.gain.value = this.snapshot.b.gain * b;
     }
     if (this.master) this.master.gain.value = this.snapshot.master;
+    this.applyCueRouting();
+  }
+
+  /**
+   * Atualiza o bus de cue, o blend cue/master e o volume de fone.
+   */
+  private applyCueRouting(): void {
+    if (!this.decks) return;
+    const x = this.snapshot.crossfader;
+    const xfA = Math.cos((x * Math.PI) / 2);
+    const xfB = Math.sin((x * Math.PI) / 2);
+
+    (["a", "b"] as const).forEach((id) => {
+      const deck = this.snapshot[id];
+      const nodes = this.decks![id];
+      const xf = id === "a" ? xfA : xfB;
+      nodes.cueSend.gain.value = deck.cueMonitor ? deck.gain * xf : 0;
+    });
+
+    if (!this.cuePflGain || !this.cueMasterGain || !this.headphonesGain) return;
+
+    if (this.snapshot.masterCue) {
+      this.cuePflGain.gain.value = 0;
+      this.cueMasterGain.gain.value = 1;
+    } else {
+      this.cuePflGain.gain.value = 1 - this.snapshot.cueMix;
+      this.cueMasterGain.gain.value = this.snapshot.cueMix;
+    }
+    this.headphonesGain.gain.value = this.snapshot.booth;
   }
 }
 

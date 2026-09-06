@@ -133,19 +133,23 @@ function SectorLayer({
 interface CamelotWheelProps {
   selected: string;
   onSelect: (code: string) => void;
+  /** Modo plano para o picker da cabine, sem tilt 3D que atrapalha o clique. */
+  variant?: "stage" | "flat";
 }
 
-export function CamelotWheel({ selected, onSelect }: CamelotWheelProps) {
+export function CamelotWheel({ selected, onSelect, variant = "stage" }: CamelotWheelProps) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const uid = useId().replace(/:/g, "");
   const glowId = `${uid}-hub-glow`;
   const active = getCamelotKey(selected) ?? CAMELOT_BY_CODE["8A"]!;
+  const flat = variant === "flat";
 
   useEffect(() => {
+    if (flat) return;
     const root = sceneRef.current;
     if (!root) return;
     return bindCamelotStage(root);
-  }, []);
+  }, [flat]);
 
   const onWheelKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -180,7 +184,7 @@ export function CamelotWheel({ selected, onSelect }: CamelotWheelProps) {
   return (
     <div
       ref={sceneRef}
-      className="camelot-scene"
+      className={`camelot-scene${flat ? " camelot-scene--flat" : ""}`}
       style={{ "--key-color": active.color } as CSSProperties}
     >
       <div className="camelot-chassis">

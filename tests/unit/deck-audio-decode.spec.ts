@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decodeDeckFile } from "../../src/lib/deck-audio-decode";
+import { decodeDeckBuffer, decodeDeckFile } from "../../src/lib/deck-audio-decode";
 import { parseBpmFromFilename, titleFromFilename } from "../../src/lib/deck-metadata";
 import { MockAudioContext } from "../helpers/mock-audio-context";
 
@@ -17,6 +17,18 @@ describe("deck-audio-decode", () => {
     const ctx = new MockAudioContext();
     const file = new File([new Uint8Array(4)], "vazio.mp3", { type: "audio/mpeg" });
     await expect(decodeDeckFile(ctx as unknown as AudioContext, file)).rejects.toThrow(/inválido/);
+  });
+
+  test("decodeDeckBuffer reusa os mesmos bytes sem File", async () => {
+    const ctx = new MockAudioContext();
+    const data = new Uint8Array(2048).buffer;
+    const decoded = await decodeDeckBuffer(ctx as unknown as AudioContext, data, {
+      title: "Voices",
+      bpm: 128,
+    });
+    expect(decoded.title).toBe("Voices");
+    expect(decoded.bpm).toBe(128);
+    expect(decoded.durationSec).toBeGreaterThan(0);
   });
 
   test("parseBpmFromFilename e título", () => {

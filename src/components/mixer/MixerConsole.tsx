@@ -1,3 +1,6 @@
+import type { CSSProperties } from "react";
+import { crossfaderSliderStyle } from "../../lib/range-slider-style";
+import { getCamelotKey } from "../../lib/musical-key";
 import type { DeckId, MixerAction, MixerSnapshot } from "../../types/mixer";
 import { RotaryKnob } from "./RotaryKnob";
 import { formatKnobPercent } from "./rotary-knob-scale";
@@ -18,22 +21,20 @@ function EqBand({
   band,
   label,
   value,
-  killed,
   onChange,
 }: {
   deckId: DeckId;
   band: (typeof EQ_BANDS)[number]["id"];
   label: string;
   value: number;
-  killed: boolean;
   onChange: (action: MixerAction) => void;
 }) {
   const channel = deckId.toUpperCase();
 
   return (
-    <div className="mixer-eq-band" data-killed={killed ? "true" : "false"}>
+    <div className="mixer-eq-band">
       <p className="mixer-eq-band-label">{label}</p>
-      <div className="mixer-eq-band-row">
+      <div className="mixer-eq-band-row mixer-eq-band-row--solo">
         <RotaryKnob
           hideLabel
           label={label}
@@ -41,21 +42,11 @@ function EqBand({
           min={EQ_MIN}
           max={EQ_MAX}
           step={EQ_STEP}
-          disabled={killed}
           ariaLabel={`${label} canal ${channel}`}
           toneClass="mixer-vol-knob--eq"
-          formatValue={(next) => (killed ? "KILL" : formatKnobPercent(next, EQ_MIN, EQ_MAX))}
+          formatValue={(next) => formatKnobPercent(next, EQ_MIN, EQ_MAX)}
           onChange={(next) => onChange({ type: "eq", id: deckId, band, value: next })}
         />
-        <button
-          type="button"
-          className={`mixer-eq-kill${killed ? " is-on" : ""}`}
-          aria-pressed={killed}
-          aria-label={`Kill ${label} canal ${channel}`}
-          onClick={() => onChange({ type: "eqKill", id: deckId, band, value: !killed })}
-        >
-          <span className="mixer-eq-kill-dot" aria-hidden="true" />
-        </button>
       </div>
     </div>
   );
@@ -85,19 +76,8 @@ function ChannelEq({
           step={0.01}
           ariaLabel={`Trim deck ${channel}`}
           toneClass="mixer-vol-knob--trim"
-          formatValue={(next) => `${Math.round(next * 100)}%`}
+          formatValue={(next) => formatKnobPercent(next, 0.2, 1)}
           onChange={(value) => onChange({ type: "trim", id: deckId, value })}
-        />
-        <RotaryKnob
-          label="FILTER"
-          value={deck.filter}
-          min={-100}
-          max={100}
-          step={1}
-          ariaLabel={`Filter deck ${channel}`}
-          toneClass="mixer-vol-knob--filter"
-          formatValue={(next) => formatKnobPercent(next, -100, 100)}
-          onChange={(value) => onChange({ type: "filter", id: deckId, value })}
         />
       </div>
       {EQ_BANDS.map((item) => (
@@ -107,10 +87,26 @@ function ChannelEq({
           band={item.id}
           label={item.label}
           value={deck.eq[item.id]}
-          killed={deck.eqKill[item.id]}
           onChange={onChange}
         />
       ))}
+      <div className="mixer-eq-band mixer-eq-filter">
+        <p className="mixer-eq-band-label">FILTER</p>
+        <div className="mixer-eq-band-row mixer-eq-band-row--solo">
+          <RotaryKnob
+            hideLabel
+            label="FILTER"
+            value={deck.filter}
+            min={-100}
+            max={100}
+            step={1}
+            ariaLabel={`Filter deck ${channel}`}
+            toneClass="mixer-vol-knob--filter"
+            formatValue={(next) => formatKnobPercent(next, -100, 100)}
+            onChange={(value) => onChange({ type: "filter", id: deckId, value })}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -122,8 +118,15 @@ export function MixerConsole({
   snap: MixerSnapshot;
   onChange: (action: MixerAction) => void;
 }) {
+  const camelotA = getCamelotKey(snap.a.track.key)?.color ?? "#8b8fa8";
+  const camelotB = getCamelotKey(snap.b.track.key)?.color ?? "#8b8fa8";
+  const consoleStyle = {
+    "--camelot-a": camelotA,
+    "--camelot-b": camelotB,
+  } as CSSProperties;
+
   return (
-    <section className="mixer-console" data-stage="7" aria-label="Mixer central">
+    <section className="mixer-console" style={consoleStyle} aria-label="Mixer central">
       <header className="mixer-console-head">
         <p className="kicker">Mamute · DJM-V10</p>
         <h2 className="mixer-console-title">Mixer &amp; EQ</h2>
@@ -149,9 +152,18 @@ export function MixerConsole({
           label="CUE MIX"
           tone="cue"
           value={snap.cueMix}
-          ariaLabel="Cue mix headphone"
+          ariaLabel="Cue mix headphone digital"
           onChange={(value) => onChange({ type: "cueMix", value })}
         />
+        <button
+          type="button"
+          className={`mixer-master-cue${snap.masterCue ? " is-on" : ""}`}
+          aria-pressed={snap.masterCue}
+          aria-label="Master cue no fone digital"
+          onClick={() => onChange({ type: "toggleMasterCue" })}
+        >
+          MASTER CUE
+        </button>
       </div>
 
       <div className="mixer-eq-rack" role="group" aria-label="Equalizador de 3 bandas">
@@ -189,7 +201,7 @@ export function MixerConsole({
         teclado continuam andando 1% do curso, que é o passo padrão do range.
       */}
       <div className="mixer-faders">
-        <label className="mixer-fader">
+        <label className="mixer-fader" data-deck="a">
           <span>CH A</span>
           <input
             type="range"
@@ -197,11 +209,12 @@ export function MixerConsole({
             max={1}
             step="any"
             value={snap.a.gain}
+            style={crossfaderSliderStyle(snap.a.gain)}
             aria-label="Volume deck A"
             onChange={(event) => onChange({ type: "gain", id: "a", value: Number(event.target.value) })}
           />
         </label>
-        <label className="mixer-fader">
+        <label className="mixer-fader" data-deck="b">
           <span>CH B</span>
           <input
             type="range"
@@ -209,6 +222,7 @@ export function MixerConsole({
             max={1}
             step="any"
             value={snap.b.gain}
+            style={crossfaderSliderStyle(snap.b.gain)}
             aria-label="Volume deck B"
             onChange={(event) => onChange({ type: "gain", id: "b", value: Number(event.target.value) })}
           />
@@ -224,6 +238,7 @@ export function MixerConsole({
           max={1}
           step="any"
           value={snap.crossfader}
+          style={crossfaderSliderStyle(snap.crossfader)}
           data-xf={snap.crossfader}
           aria-label="Crossfader"
           onChange={(event) => onChange({ type: "xf", value: Number(event.target.value) })}

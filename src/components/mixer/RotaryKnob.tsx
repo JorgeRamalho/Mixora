@@ -1,14 +1,19 @@
 import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { snapKnobValue, valueFromVisualNorm, visualNorm } from "./rotary-knob-scale";
+import {
+  dialDeg,
+  snapKnobValue,
+  valueFromAngle,
+  valueFromVisualNorm,
+  visualNorm,
+} from "./rotary-knob-scale";
 
-function dialDeg(norm: number) {
-  return norm * 270 - 135;
-}
-
-function valueFromAngle(deg: number, min: number, max: number) {
-  return valueFromVisualNorm(Math.min(1, Math.max(0, (deg + 135) / 270)), min, max);
-}
-
+/**
+ * Calcula o ângulo do ponteiro a partir da posição do mouse ou do toque.
+ *
+ * @param clientX Coordenada horizontal do ponteiro.
+ * @param clientY Coordenada vertical do ponteiro.
+ * @param rect Retângulo do dial na tela.
+ */
 function angleFromPointer(clientX: number, clientY: number, rect: DOMRect) {
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
@@ -47,7 +52,17 @@ export function RotaryKnob({
   const norm = visualNorm(value, min, max);
   const display = formatValue(value);
   const sliderValue = Math.round(norm * 100);
+  const dialStyle = {
+    "--vol-norm": String(norm),
+    "--vol-rot": `${dialDeg(norm)}deg`,
+  } as CSSProperties;
 
+  /**
+   * Atualiza o valor do knob a partir da posição do ponteiro no arco.
+   *
+   * @param clientX Coordenada horizontal do ponteiro.
+   * @param clientY Coordenada vertical do ponteiro.
+   */
   const setFromPointer = (clientX: number, clientY: number) => {
     if (disabled) return;
     const dial = dialRef.current;
@@ -93,12 +108,13 @@ export function RotaryKnob({
       <div
         ref={dialRef}
         className="mixer-vol-knob-dial"
-        style={{ "--vol-rot": `${dialDeg(norm)}deg` } as CSSProperties}
+        style={dialStyle}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
+        <span className="mixer-vol-knob-ring" aria-hidden="true" />
         <span className="mixer-vol-knob-face" aria-hidden="true">
           <span className="mixer-vol-knob-tick" />
         </span>

@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { createDdj400MapContext, mapDdj400 } from "../../src/lib/midi/ddj-400-map";
 import {
+  BEAT_JUMP_FIRST_NOTE,
+  BEAT_LOOP_FIRST_NOTE,
   BROWSER_NOTE,
   DDJ_STATUS,
   DECK_CC_14BIT,
@@ -128,7 +130,7 @@ test.describe("mapa MIDI DDJ-400 — knobs e faders", () => {
     });
   });
 
-  test("o tempo fader é invertido, porque o topo manda zero e vale +8%", () => {
+  test("o tempo fader segue a DDJ-400: topo diminui e fundo acelera", () => {
     const ctx = createDdj400MapContext();
 
     expect(send14(ctx, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0x40, 0)).toEqual({
@@ -137,29 +139,26 @@ test.describe("mapa MIDI DDJ-400 — knobs e faders", () => {
       value: 0,
     });
 
-    // Byte baixo é pitch alto. Se a conta não invertesse, este caso daria −8.
     expect(send14(ctx, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0, 0)).toEqual({
       type: "pitch",
       id: "a",
-      value: 8,
+      value: -8,
     });
     expect(send14(ctx, DDJ_STATUS.ccDeckB, DECK_CC_14BIT.tempo, 0x7f, 0x7f)).toEqual({
       type: "pitch",
       id: "b",
-      value: -8,
+      value: 8,
     });
 
-    // O divisor é o detent 0x2000, e não o fim de curso, senão o meio de cada
-    // metade marcaria +6 e −2 em vez de +4 e −4.
     expect(send14(ctx, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0x20, 0)).toEqual({
       type: "pitch",
       id: "a",
-      value: 4,
+      value: -4,
     });
     expect(send14(ctx, DDJ_STATUS.ccDeckA, DECK_CC_14BIT.tempo, 0x60, 0)).toEqual({
       type: "pitch",
       id: "a",
-      value: -4,
+      value: 4,
     });
   });
 });
@@ -169,11 +168,9 @@ test.describe("mapa MIDI DDJ-400 — jog", () => {
     test.skip(testInfo.project.name !== "desktop-chrome", "mapa puro, um projeto basta");
   });
 
-  test("o gesto encostado decima 26 ticks por nudge, e não dispara por magnitude", () => {
+  test("o gesto encostado decima 26 ticks por scratchTick, e não dispara por magnitude", () => {
     const ctx = createDdj400MapContext();
 
-    // A DDJ-400 manda delta ±1 sempre, e por isso um limiar de magnitude nunca
-    // dispararia. Quem informa velocidade é a taxa, e quem traduz é o divisor.
     const emitted: MixerAction[] = [];
     for (let tick = 0; tick < JOG_TICKS_PER_NUDGE.touched * 2; tick += 1) {
       const action = spin(ctx, DDJ_STATUS.ccDeckA, DECK_CC_JOG.touched, 1);
@@ -181,20 +178,20 @@ test.describe("mapa MIDI DDJ-400 — jog", () => {
     }
 
     expect(emitted).toEqual([
-      { type: "nudge", id: "a", direction: 1 },
-      { type: "nudge", id: "a", direction: 1 },
+      { type: "scratchTick", id: "a", delta: 0.0035 },
+      { type: "scratchTick", id: "a", delta: 0.0035 },
     ]);
   });
 
-  test("uma volta de 750 ticks encostados rende 28 nudges, que é a faixa inteira", () => {
+  test("uma volta de 750 ticks encostados rende 28 scratchTicks, que é a faixa inteira", () => {
     const ctx = createDdj400MapContext();
 
-    let nudges = 0;
+    let ticks = 0;
     for (let tick = 0; tick < 750; tick += 1) {
-      if (spin(ctx, DDJ_STATUS.ccDeckB, DECK_CC_JOG.touched, 1)) nudges += 1;
+      if (spin(ctx, DDJ_STATUS.ccDeckB, DECK_CC_JOG.touched, 1)) ticks += 1;
     }
 
-    expect(nudges).toBe(28);
+    expect(ticks).toBe(28);
   });
 
   test("a roda solta pede quatro vezes mais gesto, porque é bend e não arrasto", () => {
@@ -241,23 +238,27 @@ test.describe("mapa MIDI DDJ-400 — jog", () => {
     }
 
     expect(spin(ctx, DDJ_STATUS.ccDeckA, DECK_CC_JOG.touched, 1)).toEqual({
-      type: "nudge",
+      type: "scratchTick",
       id: "a",
-      direction: 1,
+      delta: 0.0035,
     });
   });
 
-  test("o toque do prato não vira ação, porque o CC da roda já informa o toque", () => {
+  test("o toque do prato abre e fecha scratch, e o CC encostado vira scratchTick", () => {
     const ctx = createDdj400MapContext();
 
-    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x7f), ctx)).toBeNull();
-    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x00), ctx)).toBeNull();
+    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x7f), ctx)).toEqual({
+      type: "scratchBegin",
+      id: "a",
+    });
+    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x00), ctx)).toEqual({
+      type: "scratchEnd",
+      id: "a",
+    });
 
-    // A roda nunca deduz modo, senão encostar no prato atropelaria o VINYL que
-    // o DJ escolheu na tela. A DDJ-400 sequer tem essa chave.
     for (let tick = 0; tick < 200; tick += 1) {
       const action = spin(ctx, DDJ_STATUS.ccDeckA, DECK_CC_JOG.touched, 1);
-      if (action) expect(action.type).toBe("nudge");
+      if (action) expect(action.type).toBe("scratchTick");
     }
   });
 
@@ -442,7 +443,10 @@ test.describe("mapa MIDI DDJ-400 — transporte", () => {
     const ctx = createDdj400MapContext();
 
     expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.shift, 0x7f), ctx)).toBeNull();
-    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x7f), ctx)).toBeNull();
+    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.jogTouch, 0x7f), ctx)).toEqual({
+      type: "scratchBegin",
+      id: "a",
+    });
 
     // O browser tem canal próprio, e por isso a note 0x0b ali não vira play.
     expect(mapDdj400(note(DDJ_STATUS.noteBrowser, DECK_NOTE.play, 0x7f), ctx)).toBeNull();
@@ -686,16 +690,21 @@ test.describe("mapa MIDI DDJ-400 — pads", () => {
     }
   });
 
-  test("os outros modos de pad se ignoram sozinhos, sem o mapper guardar estado", () => {
+  test("beat jump e beat loop viram ação sem estado de modo, e sampler continua fora", () => {
     const ctx = createDdj400MapContext();
 
-    // A controladora resolve o modo no hardware e manda note distinta para cada
-    // um, e por isso o pad 1 fora do Hot Cue cai fora da faixa por conta própria.
-    for (const outroModo of [0x60, 0x20, 0x30]) {
-      expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, outroModo, 0x7f), ctx)).toBeNull();
-    }
+    expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, BEAT_LOOP_FIRST_NOTE, 0x7f), ctx)).toEqual({
+      type: "setBeatLoop",
+      id: "a",
+      beats: 1,
+    });
+    expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, BEAT_JUMP_FIRST_NOTE, 0x7f), ctx)).toEqual({
+      type: "jumpBeats",
+      id: "a",
+      beats: 1,
+    });
+    expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, 0x30, 0x7f), ctx)).toBeNull();
 
-    // Soltar o pad também não repete a ação.
     expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, HOT_CUE_FIRST_NOTE, 0x00), ctx)).toBeNull();
   });
 
