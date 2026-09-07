@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 5173;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
+const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
 
 async function viteServesSrc() {
   try {
@@ -31,7 +32,7 @@ if (await viteServesSrc()) {
   console.log(`Subindo Vite em ${PORT} para o Go Live ler src/ (não dist/)…`);
 
   const child = spawn(
-    "npx",
+    NPX,
     ["vite", "--port", String(PORT), "--strictPort", "--host", "127.0.0.1"],
     {
       cwd: ROOT,

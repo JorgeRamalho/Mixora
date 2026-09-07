@@ -3,9 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function run(script) {
-  const child = spawn("npm", ["run", script], {
+  const child = spawn(NPM, ["run", script], {
     cwd: ROOT,
     stdio: "inherit",
     shell: true,
