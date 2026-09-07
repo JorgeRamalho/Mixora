@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mixar, mascote mamute DJ">
+  <defs>
+    <linearGradient id="mascot-ring" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ff5ea"/>
+      <stop offset="0.5" stop-color="#d4c4a0"/>
+      <stop offset="1" stop-color="#e85aa8"/>
+    </linearGradient>
+    <radialGradient id="mascot-fur" cx="42%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#3a3244"/>
+      <stop offset="48%" stop-color="#1a1624"/>
+      <stop offset="100%" stop-color="#07060c"/>
+    </radialGradient>
+    <linearGradient id="mascot-tusk" x1="18" y1="28" x2="28" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0e2c4"/>
+      <stop offset="1" stop-color="#d4c4a0"/>
+    </linearGradient>
+    <radialGradient id="mascot-disc" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#2a2430"/>
+      <stop offset="100%" stop-color="#05040a"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30.2" fill="#07060c"/>
+  <circle cx="32" cy="32" r="30.2" fill="url(#mascot-fur)" opacity="0.55"/>
+  <circle cx="18" cy="46" r="7.2" fill="url(#mascot-disc)" stroke="url(#mascot-ring)" stroke-width="1.15"/>
+  <circle cx="46" cy="46" r="7.2" fill="url(#mascot-disc)" stroke="url(#mascot-ring)" stroke-width="1.15"/>
+  <circle cx="18" cy="46" r="2.15" fill="url(#mascot-ring)"/>
+  <circle cx="46" cy="46" r="2.15" fill="url(#mascot-ring)"/>
+  <text x="18" y="47.35" text-anchor="middle" fill="#07060c" font-size="3.2" font-family="Syne, sans-serif" font-weight="800">A</text>
+  <text x="46" y="47.35" text-anchor="middle" fill="#07060c" font-size="3.2" font-family="Syne, sans-serif" font-weight="800">B</text>
+  <ellipse cx="32" cy="40" rx="13.2" ry="10.4" fill="url(#mascot-fur)"/>
+  <ellipse cx="32" cy="26.2" rx="11.6" ry="10.2" fill="url(#mascot-fur)"/>
+  <ellipse cx="32" cy="18.6" rx="8.4" ry="5.2" fill="#2a2430"/>
+  <path d="M14 24c-1.2-7.4 8.2-12.4 16.6-11.2" stroke="url(#mascot-ring)" stroke-width="2.35" stroke-linecap="round"/>
+  <rect x="10.2" y="21.6" width="8.4" height="11.2" rx="4.1" fill="#e85aa8"/>
+  <rect x="45.4" y="21.6" width="8.4" height="11.2" rx="4.1" fill="#e85aa8"/>
+  <circle cx="14.4" cy="27.2" r="2.7" fill="url(#mascot-disc)" stroke="#8ff5ea" stroke-width="0.7"/>
+  <circle cx="49.6" cy="27.2" r="2.7" fill="url(#mascot-disc)" stroke="#d4c4a0" stroke-width="0.7"/>
+  <circle cx="51.8" cy="21.2" r="1.15" fill="#9dff6a"/>
+  <path d="M22.2 34c-2.4 8.2-2.8 14.4-0.4 18.6" stroke="url(#mascot-tusk)" stroke-width="2.35" stroke-linecap="round"/>
+  <path d="M41.8 34c2.4 8.2 2.8 14.4 0.4 18.6" stroke="url(#mascot-tusk)" stroke-width="2.35" stroke-linecap="round"/>
+  <rect x="21.6" y="26.4" width="8.2" height="4.6" rx="1.4" fill="#07060c"/>
+  <rect x="34.2" y="26.4" width="8.2" height="4.6" rx="1.4" fill="#07060c"/>
+  <rect x="23.2" y="27.7" width="5" height="1.7" rx="0.7" fill="#8ff5ea"/>
+  <rect x="35.8" y="27.7" width="5" height="1.7" rx="0.7" fill="#8ff5ea"/>
+  <ellipse cx="32" cy="37.6" rx="5.6" ry="4.2" fill="#241e30"/>
+  <path d="M32 35.4c1.6 2.8 1.2 6.4-0.4 8.2" stroke="#d4c4a0" stroke-width="1.15" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="30.2" fill="none" stroke="url(#mascot-ring)" stroke-width="1.55"/>
+</svg>

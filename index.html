@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
+        if (location.protocol === "file:") return;
+        var APP = {
+          mixer: 1,
+          academia: 1,
+          catalogo: 1,
+          cadastro: 1,
+          dj: 1,
+          politicas: 1,
+          harmonia: 1,
+          download: 1,
+        };
+        var path = location.pathname.replace(/\/index\.html$/i, "");
+        var parts = path.split("/").filter(Boolean);
+        var hrefParts = [];
+        for (var i = 0; i < parts.length; i += 1) {
+          if (APP[parts[i]]) break;
+          hrefParts.push(parts[i]);
+        }
+        var href = hrefParts.length ? "/" + hrefParts.join("/") + "/" : "/";
+        if (href === "/") return;
+        var base = document.createElement("base");
+        base.href = href;
+        var charset = document.head.querySelector("meta[charset]");
+        document.head.insertBefore(base, charset ? charset.nextSibling : null);
+      })();
+    </script>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <link rel="icon" type="image/svg+xml" href="./public/favicon.svg?v=mixora" />
+    <link rel="apple-touch-icon" href="./public/logo-mixora.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="MIXORAPlayerDJ é o mixer player harmônico para DJs: visor digital, simulador de CDJ e controladora, academia e catálogo Beatport, Deezer, SoundCloud, YouTube e Spotify."
+    />
+    <meta
+      name="keywords"
+      content="MIXORAPlayerDJ, MIXORA, DJ, mixer player, CDJ, controladora, harmonia, Camelot, beatmatching, Beatport, Deezer, SoundCloud, YouTube, Spotify, academia DJ"
+    />
+    <meta name="author" content="MIXORAPlayerDJ" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#07060c" />
+    <link rel="canonical" href="https://mamutedjplayerm.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="MIXORAPlayerDJ" />
+    <meta property="og:title" content="MIXORAPlayerDJ — Dois decks. Uma harmonia." />
+    <meta
+      property="og:description"
+      content="O player harmônico para DJs. Visor digital, CDJ virtual e academia MIXORA."
+    />
+    <meta property="og:image" content="./public/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MIXORAPlayerDJ — Dois decks. Uma harmonia." />
+    <meta name="twitter:image" content="./public/og.png" />
+    <meta
+      name="twitter:description"
+      content="Simulador de CDJ, harmonia Camelot e academia para DJs iniciantes e avançados."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>MIXORAPlayerDJ — Dois decks. Uma harmonia.</title>
+    <link rel="stylesheet" href="./dist/assets/index.css" />
+  </head>
+  <body>
+    <form name="mamute-cadastro" data-netlify="true" hidden>
+      <input type="text" name="fullName" />
+      <input type="text" name="artistName" />
+      <input type="email" name="email" />
+      <input type="text" name="phone" />
+      <input type="text" name="city" />
+      <input type="text" name="country" />
+      <textarea name="bio"></textarea>
+      <input type="text" name="experienceLevel" />
+    </form>
+    <div id="root">
+      <section
+        data-mamute-shell
+        style="font-family: Outfit, sans-serif; color: #f3efe6; padding: 2.5rem; max-width: 36rem; margin: 18vh auto; text-align: center; line-height: 1.5"
+      >
+        <p style="color: #d4c4a0; letter-spacing: 0.24em; font-size: 0.7rem">MIXORA PLAYER DJ</p>
+        <h1 style="font-family: Syne, sans-serif; font-size: 1.6rem">A carregar a cabine…</h1>
+        <p>O Live Server lê este HTML e o boot monta o app em seguida.</p>
+      </section>
+    </div>
+    <script>
+      (function () {
+        var VISOR_BPM = 124;
+        var BEAT_MS = 60000 / VISOR_BPM;
+        var TICKER_BEATS = 192;
+        document.documentElement.style.setProperty("--visor-bpm", String(VISOR_BPM));
+        document.documentElement.style.setProperty(
+          "--ticker-duration",
+          (TICKER_BEATS * BEAT_MS) / 1000 + "s",
+        );
+
+        var rate = 1;
+        var target = 1;
+        var tau = 0.62;
+        var last = performance.now();
+
+        function tick(now) {
+          var dt = Math.min(0.048, (now - last) / 1000);
+          last = now;
+          rate += (target - rate) * (1 - Math.exp(-dt / tau));
+          if (target === 0 && rate < 0.02) rate = 0;
+          var track = document.querySelector(".status-track");
+          if (track) {
+            var anims = track.getAnimations();
+            for (var i = 0; i < anims.length; i += 1) {
+              anims[i].playbackRate = rate;
+            }
+          }
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+
+        document.addEventListener(
+          "pointerover",
+          function (event) {
+            var node = event.target;
+            if (node && node.closest && node.closest(".status-bar")) {
+              target = 0;
+              tau = 0.62;
+            }
+          },
+          true,
+        );
+
+        document.addEventListener(
+          "pointerout",
+          function (event) {
+            var from = event.target && event.target.closest ? event.target.closest(".status-bar") : null;
+            var to =
+              event.relatedTarget && event.relatedTarget.closest
+                ? event.relatedTarget.closest(".status-bar")
+                : null;
+            if (from && !to) {
+              target = 1;
+              tau = 0.95;
+            }
+          },
+          true,
+        );
+      })();
+    </script>
+    <script data-mamute-live-boot>
+      (function () {
+        var port = String(location.port || "");
+        if (/^517\d$/.test(port) || port === "4173" || port === "8888") return;
+        if (document.querySelector('script[src*="src/main.tsx"]')) return;
+        if (document.querySelector('script[src*="assets/main.js"]:not([data-mamute-dist])')) return;
+
+        var VITE_ORIGIN = "http://127.0.0.1:5173";
+        var VITE_POLL_MS = 1500;
+        var CSS_HREF = "./dist/assets/index.css";
+        var JS_HREF = "./dist/assets/main.js";
+
+        function viteIsReady(res) {
+          if (!res.ok) return false;
+          var type = res.headers.get("content-type") || "";
+          if (/html/i.test(type)) return false;
+          return /javascript|typescript|ecmascript|module/i.test(type) || type === "";
+        }
+
+        function withTimeout(promise, ms) {
+          return new Promise(function (resolve, reject) {
+            var timer = setTimeout(function () {
+              reject(new Error("vite timeout"));
+            }, ms);
+            promise.then(
+              function (value) {
+                clearTimeout(timer);
+                resolve(value);
+              },
+              function (err) {
+                clearTimeout(timer);
+                reject(err);
+              },
+            );
+          });
+        }
+
+        function probeVite() {
+          return withTimeout(
+            fetch(VITE_ORIGIN + "/@vite/client", { cache: "no-store", mode: "cors" }).then(
+              function (res) {
+                if (!viteIsReady(res)) throw new Error("vite off");
+              },
+            ),
+            800,
+          );
+        }
+
+        function appAlreadyMounted() {
+          var root = document.getElementById("root");
+          return Boolean(
+            root &&
+              (root.querySelector(".app-shell") ||
+                root.querySelector("[role=banner]") ||
+                root.querySelector("[data-mamute-app]")),
+          );
+        }
+
+        function showHint() {
+          if (appAlreadyMounted()) return;
+          var root = document.getElementById("root");
+          if (!root) return;
+          root.innerHTML =
+            '<section data-live-src-required style="font-family:Outfit,sans-serif;color:#f3efe6;padding:2.5rem;max-width:42rem;margin:12vh auto;background:#100e16;border:1px solid rgba(212,196,160,.4);border-radius:18px;line-height:1.5"><p style="color:#d4c4a0;letter-spacing:.24em;font-size:.7rem">MIXORA PLAYER DJ</p><h1 style="font-family:Syne,sans-serif">Go Live sem bundle</h1><p>O Live Server (porta 5500) monta o app pelo Vite em <code>src/</code> ou pelo arquivo compilado em <code>dist/</code>.</p><p>No terminal: <code>npm run live:vite</code> (hot reload) ou <code>npm run live:build</code> (gera dist/). Recarregue com <strong>Ctrl+Shift+R</strong>.</p></section>';
+        }
+
+        function isRealAsset(type, text) {
+          if (!text || /^\s*</.test(text)) return false;
+          if (/html/i.test(type || "")) return false;
+          return text.length > 20;
+        }
+
+        function injectDist(cssHref, jsHref) {
+          if (document.querySelector("script[data-mamute-dist]")) return;
+          var css = document.createElement("link");
+          css.rel = "stylesheet";
+          css.href = cssHref;
+          document.head.appendChild(css);
+
+          var script = document.createElement("script");
+          script.type = "module";
+          script.src = jsHref;
+          script.dataset.mamuteDist = "1";
+          script.onerror = showHint;
+          document.body.appendChild(script);
+        }
+
+        function tryLoadDist() {
+          var cssHref = CSS_HREF + "?t=" + Date.now();
+          var jsHref = JS_HREF + "?t=" + Date.now();
+          return fetch(jsHref, { cache: "no-store" }).then(function (res) {
+            return res.text().then(function (text) {
+              var type = res.headers.get("content-type") || "";
+              if (res.ok && isRealAsset(type, text)) {
+                injectDist(cssHref, jsHref);
+                return true;
+              }
+              return false;
+            });
+          });
+        }
+
+        var booted = false;
+        function bootVite() {
+          if (booted || appAlreadyMounted()) return;
+          booted = true;
+          var boot = document.createElement("script");
+          boot.type = "module";
+          boot.dataset.mamuteVite = "1";
+          boot.textContent =
+            'import RefreshRuntime from "' +
+            VITE_ORIGIN +
+            '/@react-refresh";' +
+            "RefreshRuntime.injectIntoGlobalHook(window);" +
+            "window.$RefreshReg$ = () => {};" +
+            "window.$RefreshSig$ = () => (type) => type;" +
+            "window.__vite_plugin_react_preamble_installed__ = true;" +
+            'await import("' +
+            VITE_ORIGIN +
+            '/@vite/client");' +
+            'await import("' +
+            VITE_ORIGIN +
+            '/src/main.tsx");';
+          document.head.appendChild(boot);
+        }
+
+        function followVite() {
+          probeVite()
+            .then(bootVite)
+            .catch(function () {
+              setTimeout(followVite, VITE_POLL_MS);
+            });
+        }
+
+        function hardReload() {
+          if (window.__mixoraReloading) return;
+          window.__mixoraReloading = true;
+          var url = new URL(location.href);
+          url.searchParams.set("mixora-r", String(Date.now()));
+          location.replace(url.pathname + url.search + url.hash);
+        }
+
+        function stripLiveInject(html) {
+          var commentOpen = "<" + "!--";
+          var scriptClose = "<" + "/script>";
+          return String(html)
+            .replace(
+              new RegExp(commentOpen + "\\s*Code injected by live-server[\\s\\S]*?" + scriptClose + "\\s*", "i"),
+              "",
+            )
+            .replace(new RegExp(commentOpen + "\\s*Five Server[\\s\\S]*?" + scriptClose + "\\s*", "i"), "")
+            .replace(/\r\n/g, "\n");
+        }
+
+        function watchIndexHtml() {
+          var last = "";
+          function poll() {
+            fetch("/index.html?mixora-html=" + Date.now(), { cache: "no-store" })
+              .then(function (res) {
+                return res.ok ? res.text() : Promise.reject(new Error("index missing"));
+              })
+              .then(function (html) {
+                var clean = stripLiveInject(html);
+                if (!last) {
+                  last = clean;
+                  return;
+                }
+                if (clean !== last) hardReload();
+              })
+              .catch(function () {})
+              .then(function () {
+                setTimeout(poll, 1000);
+              });
+          }
+          poll();
+        }
+
+        function patchLiveServerReload() {
+          try {
+            Location.prototype.reload = function () {
+              hardReload();
+            };
+          } catch (err) {}
+        }
+
+        function followViteReload() {
+          probeVite()
+            .then(function () {
+              hardReload();
+            })
+            .catch(function () {
+              setTimeout(followViteReload, VITE_POLL_MS);
+            });
+        }
+
+        function bootLiveServer() {
+          if (location.protocol === "file:") {
+            injectDist(CSS_HREF, JS_HREF);
+            return;
+          }
+
+          patchLiveServerReload();
+          watchIndexHtml();
+
+          probeVite()
+            .then(bootVite)
+            .catch(function () {
+              tryLoadDist()
+                .then(function (ok) {
+                  if (ok) {
+                    followViteReload();
+                    return;
+                  }
+                  showHint();
+                  followVite();
+                })
+                .catch(function () {
+                  showHint();
+                  followVite();
+                });
+            });
+        }
+
+        bootLiveServer();
+      })();
+    </script>
+  </body>
+</html>

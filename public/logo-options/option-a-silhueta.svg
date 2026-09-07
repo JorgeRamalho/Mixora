@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mamute silhueta">
+  <defs>
+    <linearGradient id="bg-a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00e8ff"/>
+      <stop offset="100%" stop-color="#ff2d95"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg-a)"/>
+  <g fill="#05060b">
+    <path d="M32 14c-10 0-16 8-16 16v4c0 2 1 4 3 5l-4 14c-1 3 2 5 5 3l6-8c2 1 4 2 6 2s4-1 6-2l6 8c3 2 6 0 5-3l-4-14c2-1 3-3 3-5v-4c0-8-6-16-16-16z"/>
+    <path d="M18 38c-5 6-7 12-4 16 4-3 7-7 9-11M46 38c5 6 7 12 4 16-4-3-7-7-9-11"/>
+    <path d="M14 26c0-12 36-12 36 0v2H14z" fill="none" stroke="#05060b" stroke-width="5" stroke-linecap="round"/>
+    <rect x="6" y="24" width="10" height="14" rx="5"/>
+    <rect x="48" y="24" width="10" height="14" rx="5"/>
+    <rect x="20" y="30" width="10" height="6" rx="1.5"/>
+    <rect x="34" y="30" width="10" height="6" rx="1.5"/>
+  </g>
+</svg>

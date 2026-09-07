@@ -1,0 +1,137 @@
+:root {
+  --void: #07060c;
+  --panel: #100e16;
+  --steel: #1a1624;
+  --steel-2: #241e30;
+  --line: rgba(62, 232, 214, 0.22);
+  --line-strong: rgba(62, 232, 214, 0.52);
+  --cyan: #3ee8d6;
+  --cyan-hot: #8ff5ea;
+  --cyan-dim: #1a7a72;
+  --magenta: #e85aa8;
+  --magenta-hot: #ff8ec8;
+  --gold: #d4c4a0;
+  --gold-hot: #f0e2c4;
+  --amber: #e8c46a;
+  --amber-hot: #f6dc9a;
+  --platform-beatport: #ffcc00;
+  --platform-youtube: #ff0000;
+  --lime: #9dff6a;
+  --violet: #9b7dff;
+  --violet-hot: #cbb8ff;
+  --text: #f3efe6;
+  --muted: #9a9388;
+  --danger: #ff4d6d;
+  --grad-club: linear-gradient(125deg, var(--cyan) 0%, var(--gold) 48%, var(--magenta) 100%);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  --shadow-3d:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 -18px 28px rgba(0, 0, 0, 0.35) inset,
+    0 22px 48px rgba(0, 0, 0, 0.48);
+  --pointer-x: 18%;
+  --pointer-y: 10%;
+  --radius: 18px;
+  --radius-sm: 10px;
+  --header-h: 72px;
+  --status-h: 36px;
+  --visor-bpm: 124;
+  --beat-ms: calc(60000ms / var(--visor-bpm));
+  --ticker-duration: 93s;
+  --layout-max: 1180px;
+  --layout-gutter: 1rem;
+  --cookie-banner-h: 0px;
+  --font-display: "Syne", sans-serif;
+  --font-brand: "Cormorant Garamond", "Times New Roman", serif;
+  --font-hud: "Syne", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-body: "Outfit", sans-serif;
+  --scan: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.035) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-h) + 0.75rem);
+  scroll-padding-bottom: var(--cookie-banner-h, 0px);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--font-body);
+  letter-spacing: 0.01em;
+  background-color: var(--void);
+  background-image:
+    radial-gradient(ellipse 90% 58% at 8% -10%, rgba(62, 232, 214, 0.14), transparent 54%),
+    radial-gradient(ellipse 70% 48% at 96% 0%, rgba(232, 90, 168, 0.12), transparent 50%),
+    radial-gradient(ellipse 42% 32% at 50% 0%, rgba(212, 196, 160, 0.08), transparent 48%),
+    radial-gradient(ellipse 55% 38% at 48% 108%, rgba(155, 125, 255, 0.12), transparent 56%);
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 80;
+  background: var(--cyan);
+  color: var(--void);
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  top: 0.75rem;
+}

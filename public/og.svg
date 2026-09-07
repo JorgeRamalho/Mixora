@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="MIXORAPlayerDJ">
+  <rect width="1200" height="630" fill="#05060b"/>
+  <ellipse cx="250" cy="300" rx="280" ry="220" fill="#00e8ff" opacity="0.08"/>
+  <ellipse cx="980" cy="120" rx="260" ry="180" fill="#ff2d95" opacity="0.12"/>
+  <g transform="translate(72 183) scale(4.1)">
+    <rect width="64" height="64" rx="18" fill="#0c1018"/>
+    <circle cx="32" cy="35" r="17" fill="#a06b45"/>
+    <circle cx="32" cy="21" r="9.5" fill="#a06b45"/>
+    <path d="M19 39c-3.5 7-4 12-1.5 16" stroke="#f5e8cc" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M45 39c3.5 7 4 12 1.5 16" stroke="#f5e8cc" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M13 27c0-11 38-11 38 0" stroke="#ff2d95" stroke-width="4.2" fill="none" stroke-linecap="round"/>
+    <rect x="6" y="24" width="12" height="16" rx="6" fill="#ff2d95"/>
+    <rect x="46" y="24" width="12" height="16" rx="6" fill="#ff2d95"/>
+    <rect x="18" y="31" width="12" height="7.5" rx="2.2" fill="#0a0e14"/>
+    <rect x="34" y="31" width="12" height="7.5" rx="2.2" fill="#0a0e14"/>
+    <rect x="20" y="33" width="4.5" height="2" rx="1" fill="#00e8ff" opacity="0.85"/>
+    <ellipse cx="32" cy="44.5" rx="7.5" ry="5.2" fill="#7d5438"/>
+  </g>
+  <text x="430" y="268" fill="#8a94a8" font-family="IBM Plex Mono, monospace" font-size="22" letter-spacing="6">A CABINE DO MAMUTE</text>
+  <text x="430" y="348" fill="#e8eef8" font-family="Orbitron, sans-serif" font-size="72" font-weight="800">MAMUTE</text>
+  <text x="430" y="422" fill="#ff2d95" font-family="Orbitron, sans-serif" font-size="48" font-weight="800">DJPLAYER</text>
+  <text x="430" y="488" fill="#8a94a8" font-family="Outfit, sans-serif" font-size="28">Mixer player · CDJ · Academia DJ</text>
+  <rect x="430" y="518" width="420" height="8" fill="#00e8ff"/>
+</svg>

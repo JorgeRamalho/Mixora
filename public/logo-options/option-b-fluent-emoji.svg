@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mamute emoji flat">
+  <rect width="64" height="64" rx="18" fill="#8B5E3C"/>
+  <ellipse cx="32" cy="40" rx="20" ry="18" fill="#A0714F"/>
+  <ellipse cx="32" cy="28" rx="14" ry="12" fill="#B8845E"/>
+  <ellipse cx="32" cy="22" rx="10" ry="8" fill="#C9956A"/>
+  <path d="M14 42c-2 8-1 14 3 18M50 42c2 8 1 14-3 18" stroke="#FFF3D6" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+  <path d="M12 24c0-12 40-12 40 0" stroke="#E91E8C" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <rect x="4" y="22" width="13" height="17" rx="6.5" fill="#FF2D95"/>
+  <rect x="47" y="22" width="13" height="17" rx="6.5" fill="#FF2D95"/>
+  <rect x="7" y="26" width="7" height="9" rx="3.5" fill="#3D2817"/>
+  <rect x="50" y="26" width="7" height="9" rx="3.5" fill="#3D2817"/>
+  <rect x="17" y="30" width="13" height="8" rx="3" fill="#1A1A2E"/>
+  <rect x="34" y="30" width="13" height="8" rx="3" fill="#1A1A2E"/>
+  <path d="M30 34h4" stroke="#1A1A2E" stroke-width="2.5" stroke-linecap="round"/>
+  <ellipse cx="32" cy="46" rx="9" ry="6" fill="#6B4428"/>
+  <circle cx="28" cy="45" r="1.4" fill="#3D2817"/>
+  <circle cx="36" cy="45" r="1.4" fill="#3D2817"/>
+  <circle cx="20" cy="32" r="2" fill="#fff" opacity="0.35"/>
+</svg>

@@ -1,0 +1,166 @@
+.app-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.stage-haze {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      720px 520px at var(--pointer-x, 18%) var(--pointer-y, 10%),
+      color-mix(in srgb, var(--cyan) 22%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      540px 380px at calc(var(--pointer-x, 18%) + 18%) calc(var(--pointer-y, 10%) + 12%),
+      color-mix(in srgb, var(--magenta) 14%, transparent),
+      transparent 52%
+    );
+}
+
+.stage-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.7;
+  mix-blend-mode: screen;
+  animation: orb-drift 22s ease-in-out infinite;
+}
+
+.stage-orb-cyan {
+  width: min(48vw, 520px);
+  height: min(48vw, 520px);
+  left: -8%;
+  top: -12%;
+  background: radial-gradient(circle, rgba(0, 232, 255, 0.38), transparent 68%);
+}
+
+.stage-orb-magenta {
+  width: min(42vw, 460px);
+  height: min(42vw, 460px);
+  right: -10%;
+  top: 4%;
+  background: radial-gradient(circle, rgba(255, 45, 149, 0.34), transparent 70%);
+  animation-delay: -7s;
+  animation-duration: 26s;
+}
+
+.stage-orb-violet {
+  width: min(50vw, 560px);
+  height: min(38vw, 420px);
+  left: 28%;
+  bottom: -18%;
+  background: radial-gradient(circle, rgba(139, 124, 255, 0.3), transparent 68%);
+  animation-delay: -13s;
+  animation-duration: 28s;
+}
+
+.stage-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+.app-shell > main,
+.app-shell > .site-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.card,
+.plan-card,
+.form-section,
+.video-frame {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --glint-x: 42%;
+  --glint-y: 8%;
+  transform-style: preserve-3d;
+  transform: perspective(1180px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.card,
+.form-section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      520px circle at var(--glint-x) var(--glint-y),
+      rgba(255, 255, 255, 0.1),
+      transparent 46%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--cyan) 14%, var(--steel-2)) 0%,
+      var(--steel) 42%,
+      color-mix(in srgb, var(--magenta) 10%, #101624) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--line) 80%, white 8%);
+  box-shadow: var(--shadow-3d);
+}
+
+.card::before,
+.form-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--cyan) 70%, white),
+    color-mix(in srgb, var(--magenta) 55%, var(--violet)),
+    transparent
+  );
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+@keyframes orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  40% {
+    transform: translate3d(6%, 8%, 0) scale(1.08);
+  }
+  70% {
+    transform: translate3d(-5%, 4%, 0) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-orb {
+    animation: none;
+  }
+
+  .card,
+  .plan-card,
+  .form-section,
+  .video-frame {
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .card,
+  .plan-card,
+  .form-section,
+  .video-frame {
+    transform: none;
+  }
+}

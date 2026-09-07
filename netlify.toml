@@ -1,0 +1,81 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[dev]
+  command = "vite"
+  targetPort = 5173
+  port = 8888
+  autoLaunch = true
+
+[[redirects]]
+  from = "/api/deezer/*"
+  to = "https://api.deezer.com/:splat"
+  status = 200
+  force = true
+
+# Vite module paths must reach the 5173 server in `netlify dev`.
+# The SPA fallback used to rewrite /src/main.tsx to index.html (MIME text/html),
+# so the confirm-email link on :8888 never mounted React and never sent the token.
+[[redirects]]
+  from = "/src/*"
+  to = "http://127.0.0.1:5173/src/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/@vite/*"
+  to = "http://127.0.0.1:5173/@vite/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/@react-refresh"
+  to = "http://127.0.0.1:5173/@react-refresh"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/@fs/*"
+  to = "http://127.0.0.1:5173/@fs/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/@id/*"
+  to = "http://127.0.0.1:5173/@id/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/node_modules/*"
+  to = "http://127.0.0.1:5173/node_modules/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/radio"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/radio/*"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), midi=(self)"

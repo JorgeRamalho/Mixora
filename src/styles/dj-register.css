@@ -1,0 +1,881 @@
+.dj-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.dj-page-intro {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 52rem;
+}
+
+.dj-page-intro .lede {
+  max-width: 56ch;
+}
+
+.dj-page-switch {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.dj-page-switch a {
+  color: var(--cyan);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.dj-login {
+  max-width: 28rem;
+  display: grid;
+  justify-items: stretch;
+  gap: 1.05rem;
+  padding: clamp(1.1rem, 2.4vw, 1.5rem);
+}
+
+.dj-login h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.dj-login > .lede {
+  margin: 0 auto;
+  text-align: center;
+}
+
+.dj-login-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.dj-login-form .btn-solid {
+  justify-self: stretch;
+  width: 100%;
+  margin-top: 0.35rem;
+  text-align: center;
+}
+
+.dj-login-error {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--magenta) 45%, var(--line));
+  background: rgba(255, 45, 149, 0.08);
+  color: color-mix(in srgb, var(--magenta) 20%, white);
+  font-size: 0.88rem;
+}
+
+.dj-login-banner {
+  max-width: 40rem;
+}
+
+.dj-login-extras {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.7rem 1.4rem;
+  text-align: center;
+}
+
+.dj-login .dj-page-switch {
+  text-align: center;
+}
+
+.dj-login-text-btn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.dj-login-text-btn:hover,
+.dj-login-text-btn:focus-visible {
+  color: color-mix(in srgb, var(--cyan) 70%, white);
+  outline: none;
+}
+
+.dj-login-text-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.dj-login-code {
+  font-family: var(--font-hud);
+  font-size: 1.15rem;
+  letter-spacing: 0.28em;
+  text-align: center;
+}
+
+.dj-portal {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1.1rem, 2.4vw, 1.5rem);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--steel);
+  transform: none;
+  box-shadow: none;
+}
+
+.dj-portal,
+.dj-portal * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.dj-portal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dj-portal-eyebrow {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.dj-portal-head h2 {
+  margin: 0 0 0.2rem;
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+}
+
+.dj-portal-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dj-portal-meta {
+  margin-top: 0.2rem !important;
+  font-size: 0.88rem;
+}
+
+.dj-portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.dj-portal-tile {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-decoration: none;
+}
+
+.dj-portal-tile strong {
+  font-size: 0.95rem;
+}
+
+.dj-portal-tile span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.dj-portal-tile:focus-visible {
+  outline: 2px solid var(--line-strong);
+  outline-offset: 2px;
+}
+
+.dj-portal .btn {
+  transform: none;
+  box-shadow: none;
+}
+
+.dj-portal .btn:hover,
+.dj-portal .btn:focus-visible {
+  transform: none;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.password-field {
+  position: relative;
+  display: grid;
+}
+
+.password-field input {
+  padding-right: 2.85rem;
+}
+
+.password-field-toggle {
+  position: absolute;
+  right: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-field-toggle:hover,
+.password-field-toggle:focus-visible {
+  color: var(--cyan);
+  outline: none;
+  background: rgba(0, 232, 255, 0.08);
+}
+
+.password-field-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.dj-profile-cover {
+  height: 5.5rem;
+  margin: -1.5rem -1.5rem 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--steel-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.dj-profile-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-top: -2.6rem;
+}
+
+.dj-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 5.4rem;
+  height: 5.4rem;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--steel-2);
+  font-family: var(--font-hud);
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.dj-profile-hero-copy {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.dj-profile-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.dj-profile-bio {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 0.98rem;
+}
+
+.dj-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dj-profile-stats li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dj-profile-stats strong {
+  font-family: var(--font-hud);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.dj-profile-stats span {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dj-profile-socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.dj-profile-socials a,
+.dj-profile-socials span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.dj-profile-feed {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.dj-profile-block {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.95rem 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.dj-profile-block h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.dj-profile-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.dj-profile-facts {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.dj-profile-fact {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.dj-profile-fact dt {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dj-profile-fact dd {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.dj-profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dj-profile-chips li {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 720px) {
+  .dj-profile-cover {
+    margin: -1.1rem -1.1rem 0;
+    height: 4.2rem;
+  }
+
+  .dj-profile-feed {
+    grid-template-columns: 1fr;
+  }
+
+  .dj-profile-hero-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+.dj-register {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.dj-register-hero {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid color-mix(in srgb, var(--magenta) 28%, var(--line));
+  background:
+    radial-gradient(ellipse 70% 60% at 100% 0%, rgba(255, 45, 149, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(0, 232, 255, 0.1), transparent 58%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.03), transparent 45%),
+    var(--steel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.32);
+}
+
+.dj-register-hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dj-register-hero-copy {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 38rem;
+}
+
+.dj-register-hero-copy h2 {
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+  margin: 0;
+}
+
+.dj-register-hero-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.dj-register-progress-ring {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: end;
+  text-align: right;
+  min-width: 7.5rem;
+}
+
+.dj-register-progress-value {
+  font-family: var(--font-hud);
+  font-size: 1.65rem;
+  letter-spacing: 0.06em;
+  color: var(--cyan);
+  line-height: 1;
+}
+
+.dj-register-progress-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dj-register-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.dj-register-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  transition: width 0.35s ease;
+}
+
+.dj-register-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dj-register-step-pill {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.dj-register-step-pill:hover {
+  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
+  color: var(--text);
+}
+
+.dj-register-step-pill.is-done {
+  border-color: color-mix(in srgb, var(--lime) 45%, var(--line));
+  color: color-mix(in srgb, var(--lime) 85%, white);
+}
+
+.dj-register-step-pill.is-current {
+  border-color: color-mix(in srgb, var(--cyan) 55%, var(--line));
+  color: var(--cyan);
+  background: rgba(0, 232, 255, 0.1);
+}
+
+.dj-register-step-pill:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.dj-register-optional {
+  margin: -0.35rem 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.dj-register-recap {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dj-register-recap li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dj-register-recap li span {
+  font-family: var(--font-hud);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--cyan);
+}
+
+.dj-register-recap li.is-done {
+  border-color: color-mix(in srgb, var(--lime) 35%, var(--line));
+  color: var(--text);
+}
+
+.dj-register-form {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.dj-register-form .form-section {
+  margin-bottom: 0.25rem;
+  scroll-margin-top: calc(var(--header-h) + var(--status-h) + 1rem);
+  padding: clamp(1rem, 2.2vw, 1.35rem);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, white 8%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 38%),
+    var(--steel);
+  transform: none;
+  transition: border-color 0.2s ease;
+}
+
+.dj-register-form .form-section:focus-within {
+  border-color: color-mix(in srgb, var(--cyan) 40%, var(--line));
+}
+
+.dj-register-section-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.dj-register-section-badge {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  font-family: var(--font-hud);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  color: var(--cyan);
+  border: 1px solid color-mix(in srgb, var(--cyan) 40%, var(--line));
+  background: rgba(0, 232, 255, 0.08);
+}
+
+.dj-register-section-head h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+}
+
+.dj-register-section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.dj-register-form label.field {
+  gap: 0.28rem;
+}
+
+.dj-register-form .field-hint {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: color-mix(in srgb, var(--muted) 90%, white);
+  line-height: 1.35;
+}
+
+.dj-register-form input:focus,
+.dj-register-form select:focus,
+.dj-register-form textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--cyan) 55%, var(--line));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 3px rgba(0, 232, 255, 0.12);
+}
+
+.dj-register-form .chip-set label {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dj-register-form .chip-set label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--magenta) 55%, var(--line));
+  background: rgba(255, 45, 149, 0.1);
+  color: color-mix(in srgb, var(--magenta) 20%, white);
+}
+
+.dj-register-form .checks label {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dj-register-form .checks label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
+  background: rgba(0, 232, 255, 0.06);
+}
+
+.dj-register-footer {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--magenta) 35%, var(--line));
+  background:
+    radial-gradient(ellipse 80% 80% at 50% 0%, rgba(255, 45, 149, 0.1), transparent 65%),
+    var(--steel-2);
+  position: relative;
+  z-index: 0;
+}
+
+.dj-register-footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.dj-register-footer .btn-solid {
+  justify-self: start;
+  padding: 0.7rem 1.35rem;
+  font-size: 0.72rem;
+}
+
+.dj-register-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.dj-register-nav-meta {
+  margin: 0;
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dj-register-nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.dj-register-form .form-status {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--lime) 40%, var(--line));
+  background: rgba(157, 255, 106, 0.08);
+}
+
+.dj-register-welcome {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: clamp(1.4rem, 4vw, 2.6rem);
+  border-radius: calc(var(--radius) + 8px);
+  border: 1px solid color-mix(in srgb, var(--lime) 42%, var(--line));
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(157, 255, 106, 0.16), transparent 58%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(0, 232, 255, 0.12), transparent 52%),
+    radial-gradient(ellipse 40% 35% at 0% 80%, rgba(255, 45, 149, 0.1), transparent 50%),
+    var(--steel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 44px rgba(0, 0, 0, 0.34);
+}
+
+.dj-register-welcome-kicker {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.dj-register-welcome-badge {
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  margin: 0.15rem 0 0.2rem;
+  border-radius: 16px;
+  font-family: var(--font-hud);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--cyan);
+  border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line));
+  background: rgba(0, 232, 255, 0.1);
+}
+
+.dj-register-welcome h2 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3.4vw, 2.15rem);
+  line-height: 1.15;
+}
+
+.dj-register-welcome-lede {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.dj-register-welcome-copy {
+  margin: 0;
+  max-width: 38rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.dj-register-welcome-status {
+  max-width: 36rem;
+}
+
+.dj-register-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+}
+
+@media (max-width: 720px) {
+  .dj-register-progress-ring {
+    justify-items: start;
+    text-align: left;
+    width: 100%;
+  }
+
+  .dj-register-hero-top {
+    flex-direction: column;
+  }
+
+  .dj-register-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dj-register-nav-meta {
+    margin: 0;
+    text-align: center;
+  }
+
+  .dj-register-nav-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .dj-register-nav .btn,
+  .dj-register-nav .btn-solid {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}

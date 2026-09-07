@@ -1,0 +1,30 @@
+{
+  "files.readonlyInclude": {
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/dist": true
+  },
+  "liveServer.settings.root": "/",
+  "liveServer.settings.port": 5500,
+  "liveServer.settings.host": "127.0.0.1",
+  "liveServer.settings.file": "index.html",
+  "liveServer.settings.CustomBrowser": "chrome",
+  "liveServer.settings.AdvanceCustomBrowserCmdLine": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "liveServer.settings.NoBrowser": false,
+  "liveServer.settings.useLocalIp": false,
+  "liveServer.settings.donotVerifyTags": true,
+  "liveServer.settings.wait": 800,
+  "liveServer.settings.fullReload": true,
+  "liveServer.settings.ignoreFiles": [
+    ".vscode/**",
+    "node_modules/**",
+    "dist/**",
+    "netlify/**",
+    "db/**",
+    "tests/**",
+    "docs/**",
+    "config/**",
+    ".git/**"
+  ]
+}

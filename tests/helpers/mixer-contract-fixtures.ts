@@ -1,0 +1,47 @@
+import type { MixerAction } from "../../src/types/mixer";
+
+/**
+ * Um exemplar de cada membro do union, para o teste de cobertura da tabela
+ * falhar na compilação quando um `type` novo não entrar aqui.
+ */
+export const MIXER_ACTION_SAMPLES: { [K in MixerAction["type"]]: MixerAction } = {
+  refresh: { type: "refresh" },
+  toggle: { type: "toggle", id: "a" },
+  pitch: { type: "pitch", id: "a", value: 1 },
+  gain: { type: "gain", id: "a", value: 0.5 },
+  trim: { type: "trim", id: "a", value: 0.5 },
+  filter: { type: "filter", id: "a", value: 0 },
+  eq: { type: "eq", id: "a", band: "high", value: 0 },
+  eqKill: { type: "eqKill", id: "a", band: "high", value: false },
+  xf: { type: "xf", value: 0.5 },
+  master: { type: "master", value: 0.8 },
+  booth: { type: "booth", value: 0.5 },
+  cueMix: { type: "cueMix", value: 0.5 },
+  sync: { type: "sync", id: "a", value: true },
+  toggleSync: { type: "toggleSync", id: "a" },
+  masterDeck: { type: "masterDeck", id: "a" },
+  cueMonitor: { type: "cueMonitor", id: "a", value: true },
+  toggleCueMonitor: { type: "toggleCueMonitor", id: "a" },
+  jogMode: { type: "jogMode", id: "a", value: "cdj" },
+  quantize: { type: "quantize", id: "a", value: true },
+  loadTrack: { type: "loadTrack", id: "a", trackId: "radio-spotify-01" },
+  callCue: { type: "callCue", id: "a" },
+  setCue: { type: "setCue", id: "a" },
+  cuePress: { type: "cuePress", id: "a" },
+  cueRelease: { type: "cueRelease", id: "a" },
+  toggleLoop: { type: "toggleLoop", id: "a" },
+  loopOn: { type: "loopOn", id: "a" },
+  loopOff: { type: "loopOff", id: "a" },
+  hotCue: { type: "hotCue", id: "a", slot: 1 },
+  triggerHotCue: { type: "triggerHotCue", id: "a", slot: 1 },
+  hotCuePad: { type: "hotCuePad", id: "a", slot: 1 },
+  nudge: { type: "nudge", id: "a", direction: 1 },
+  browseMove: { type: "browseMove", delta: 1 },
+  browseLoad: { type: "browseLoad", id: "a" },
+  browseHome: { type: "browseHome" },
+  requestDeckLoad: { type: "requestDeckLoad", id: "a" },
+  loadDeckFile: { type: "loadDeckFile", id: "a", file: new File([], "x.mp3") },
+  setDeckMeta: { type: "setDeckMeta", id: "a", bpm: 120 },
+  toggleDjOnline: { type: "toggleDjOnline" },
+  setDjOnline: { type: "setDjOnline", value: true },
+};

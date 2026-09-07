@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 88" role="img" aria-label="MIXORAPlayerDJ">
+  <defs>
+    <linearGradient id="wm-x" x1="8" y1="8" x2="72" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3ee8d6"/>
+      <stop offset="0.5" stop-color="#d4c4a0"/>
+      <stop offset="1" stop-color="#e85aa8"/>
+    </linearGradient>
+    <linearGradient id="wm-sub" x1="96" y1="58" x2="280" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff8ec8"/>
+      <stop offset="1" stop-color="#d4c4a0"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="8" width="72" height="72" rx="18" fill="#07060c" stroke="url(#wm-x)" stroke-width="1.6"/>
+  <path d="M20 22 38 40 56 22 62 28 44 46 62 64 56 70 38 52 20 70 14 64 32 46 14 28Z" fill="url(#wm-x)"/>
+  <text x="96" y="46" fill="#f3efe6" font-family="Georgia, 'Times New Roman', serif" font-size="38" font-weight="600" letter-spacing="6">MIXORA</text>
+  <text x="96" y="74" fill="url(#wm-sub)" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-style="italic" letter-spacing="3">PlayerDJ</text>
+</svg>

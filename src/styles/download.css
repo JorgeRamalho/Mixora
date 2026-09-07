@@ -1,0 +1,498 @@
+.download-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.download-intro {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 46rem;
+}
+
+.download-intro h1 {
+  font-size: clamp(2rem, 4.4vw, 3.35rem);
+  line-height: 0.98;
+  margin: 0.15rem 0 0;
+}
+
+.download-hub {
+  display: grid;
+  gap: 1.5rem;
+  isolation: isolate;
+}
+
+.download-grid,
+.download-docs-grid,
+.download-wizard {
+  isolation: isolate;
+}
+
+.download-recommended {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.1rem;
+  align-items: center;
+  padding: clamp(1rem, 2.4vw, 1.45rem);
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in srgb, var(--cyan) 42%, var(--line));
+  background:
+    linear-gradient(165deg, rgba(62, 232, 214, 0.12), transparent 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    var(--steel);
+  box-shadow: var(--shadow-3d);
+}
+
+.download-recommended.is-unknown {
+  grid-template-columns: 1fr;
+}
+
+.download-recommended-copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.download-recommended h2,
+.download-grid-head h2,
+.download-install h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+  line-height: 1.1;
+}
+
+.download-recommended p,
+.download-install > header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 58ch;
+}
+
+.download-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.download-run-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.download-wizard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.download-wizard-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.download-wizard-step.is-current {
+  border-color: color-mix(in srgb, var(--cyan) 55%, var(--line));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cyan) 18%, transparent);
+}
+
+.download-wizard-step.is-done {
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
+}
+
+.download-wizard-index {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  font-family: var(--font-hud);
+  font-size: 0.78rem;
+  color: var(--cyan);
+  border: 1px solid color-mix(in srgb, var(--cyan) 38%, var(--line));
+  background: rgba(0, 232, 255, 0.07);
+}
+
+.download-wizard-step.is-done .download-wizard-index {
+  color: var(--void);
+  border-color: transparent;
+  background: var(--grad-club);
+}
+
+.download-wizard-copy {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.download-wizard-copy strong {
+  font-family: var(--font-hud);
+  font-size: 0.95rem;
+}
+
+.download-wizard-copy span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.download-grid-head {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.download-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1.05rem;
+  border-radius: calc(var(--radius) + 2px);
+  scroll-margin-top: calc(var(--header-h) + var(--status-h) + 1rem);
+}
+
+.download-card.is-active {
+  border-color: color-mix(in srgb, var(--cyan) 55%, var(--line));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--cyan) 22%, transparent);
+}
+
+.download-card header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.download-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.download-card-mark {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, var(--line));
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.download-card-mark svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.download-badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--void);
+  background: var(--grad-club);
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+}
+
+.download-file {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.download-file strong {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: var(--gold-hot);
+  overflow-wrap: anywhere;
+}
+
+.download-file span,
+.download-req {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.download-req {
+  margin: 0;
+}
+
+.download-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.download-install {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1rem, 2.4vw, 1.45rem);
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in srgb, var(--magenta) 32%, var(--line));
+  background:
+    linear-gradient(165deg, rgba(232, 90, 168, 0.08), transparent 48%),
+    var(--steel);
+}
+
+.download-install header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.download-install-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.download-install-steps li {
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.download-saved {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--lime);
+}
+
+.download-error {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--danger);
+}
+
+.download-install .btn {
+  justify-self: start;
+}
+
+.download-docs {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.download-docs-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.1rem;
+  align-items: center;
+  padding: clamp(1rem, 2.4vw, 1.45rem);
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in srgb, var(--gold) 38%, var(--line));
+  background:
+    linear-gradient(165deg, rgba(212, 196, 160, 0.1), transparent 48%),
+    var(--steel);
+  box-shadow: var(--shadow-3d);
+}
+
+.download-docs-copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.download-docs-copy h2,
+.download-doc-read h3 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+  line-height: 1.1;
+}
+
+.download-docs-copy p,
+.download-doc-read > header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+.download-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.download-doc-card .download-card-mark {
+  font-family: var(--font-hud);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+.download-doc-read {
+  display: grid;
+  gap: 0.85rem;
+  padding: clamp(1rem, 2.4vw, 1.45rem);
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in srgb, var(--gold) 32%, var(--line));
+  background:
+    linear-gradient(165deg, rgba(212, 196, 160, 0.07), transparent 50%),
+    var(--steel);
+  scroll-margin-top: calc(var(--header-h) + var(--status-h) + 1rem);
+}
+
+.download-doc-read header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.download-doc-read h4 {
+  margin: 0 0 0.35rem;
+  font-size: 1.02rem;
+}
+
+.download-doc-read section p {
+  margin: 0 0 0.55rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.download-block {
+  --download-shadow-idle:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 22px rgba(0, 0, 0, 0.22);
+  --download-shadow-hot:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 1px color-mix(in srgb, var(--cyan) 28%, transparent),
+    0 18px 36px rgba(0, 232, 255, 0.14),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+  transform-origin: center center;
+  transition: border-color 240ms ease, filter 240ms ease;
+}
+
+.download-block.is-pulse {
+  animation:
+    download-pulse calc(var(--beat-ms) * 8) ease-in-out infinite,
+    download-glow-pulse calc(var(--beat-ms) * 8) ease-in-out infinite;
+  animation-delay: calc(var(--download-i, 0) * var(--beat-ms) * -1.25);
+}
+
+.download-block.is-float {
+  animation:
+    download-float calc(var(--beat-ms) * 10) ease-in-out infinite,
+    download-glow-float calc(var(--beat-ms) * 10) ease-in-out infinite;
+  animation-delay: calc(var(--download-i, 0) * var(--beat-ms) * -1.6);
+}
+
+.download-block.is-active.is-pulse {
+  animation-duration: calc(var(--beat-ms) * 6), calc(var(--beat-ms) * 6);
+}
+
+.download-block.is-active.is-float {
+  animation-duration: calc(var(--beat-ms) * 7), calc(var(--beat-ms) * 7);
+}
+
+@keyframes download-pulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.018;
+  }
+}
+
+@keyframes download-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -0.48rem;
+  }
+}
+
+@keyframes download-glow-pulse {
+  0%,
+  100% {
+    box-shadow: var(--download-shadow-idle);
+  }
+  50% {
+    box-shadow: var(--download-shadow-hot);
+  }
+}
+
+@keyframes download-glow-float {
+  0%,
+  100% {
+    box-shadow: var(--download-shadow-idle);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 16px 28px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .download-block.is-pulse:hover,
+  .download-block.is-pulse:focus-within {
+    z-index: 2;
+    animation-name: download-float, download-glow-pulse;
+    animation-duration: calc(var(--beat-ms) * 5.5), calc(var(--beat-ms) * 5.5);
+    filter: brightness(1.06);
+  }
+
+  .download-block.is-float:hover,
+  .download-block.is-float:focus-within {
+    z-index: 2;
+    animation-name: download-pulse, download-glow-pulse;
+    animation-duration: calc(var(--beat-ms) * 5.5), calc(var(--beat-ms) * 5.5);
+    filter: brightness(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-block,
+  .download-block.is-pulse,
+  .download-block.is-float,
+  .download-block.is-pulse:hover,
+  .download-block.is-float:hover,
+  .download-block.is-pulse:focus-within,
+  .download-block.is-float:focus-within {
+    animation: none;
+    filter: none;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .download-recommended,
+  .download-docs-head {
+    grid-template-columns: 1fr;
+  }
+
+  .download-grid,
+  .download-docs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .download-card header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .download-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
