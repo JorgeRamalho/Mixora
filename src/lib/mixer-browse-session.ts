@@ -7,6 +7,8 @@ export interface BrowseSessionSnapshot {
   cursorByDeck: Record<DeckId, number>;
   browseKeyFilterByDeck: DeckKeyFilters;
   browseCamelotMode: CamelotFilterMode;
+  /** Deck cuja playlist o encoder BROWSE da DDJ-400 navega no momento. */
+  browseActiveDeck: DeckId;
 }
 
 type BrowseSessionListener = () => void;
@@ -17,6 +19,7 @@ let snapshot: BrowseSessionSnapshot = {
   cursorByDeck: { a: 0, b: 0 },
   browseKeyFilterByDeck: { ...EMPTY_DECK_KEY_FILTERS },
   browseCamelotMode: "compatible",
+  browseActiveDeck: "a",
 };
 
 /**
@@ -49,6 +52,7 @@ export function updateBrowseSession(patch: Partial<BrowseSessionSnapshot>): void
     cursorByDeck: patch.cursorByDeck ?? snapshot.cursorByDeck,
     browseKeyFilterByDeck: patch.browseKeyFilterByDeck ?? snapshot.browseKeyFilterByDeck,
     browseCamelotMode: patch.browseCamelotMode ?? snapshot.browseCamelotMode,
+    browseActiveDeck: patch.browseActiveDeck ?? snapshot.browseActiveDeck,
   };
   for (const listener of listeners) listener();
 }
@@ -66,6 +70,15 @@ export function setBrowseCursor(deckId: DeckId, index: number): void {
 }
 
 /**
+ * Define qual deck recebe o encoder BROWSE da DDJ-400.
+ *
+ * @param deckId Lado da cabine que passa a ser o alvo do browse.
+ */
+export function setBrowseActiveDeck(deckId: DeckId): void {
+  updateBrowseSession({ browseActiveDeck: deckId });
+}
+
+/**
  * Zera cursor e filtros ao trocar a fonte USB/API, como no fluxo original.
  */
 export function resetBrowseSessionForSourceChange(): void {
@@ -73,6 +86,7 @@ export function resetBrowseSessionForSourceChange(): void {
     cursorByDeck: { a: 0, b: 0 },
     browseKeyFilterByDeck: { ...EMPTY_DECK_KEY_FILTERS },
     browseCamelotMode: "compatible",
+    browseActiveDeck: "a",
   });
 }
 

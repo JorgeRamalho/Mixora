@@ -1,7 +1,9 @@
 import { useEffect, useId, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { onDjSessionChange, sessionIdentityName } from "../../lib/dj-auth";
+import { isMixerRoute } from "../../lib/mixer-route";
 import { RadioFmEjectIcon, useRadioFmUi } from "../../lib/radio-fm-ui";
+import { MixerHeaderMidi } from "./MixerHeaderMidi";
 
 const SCROLL_ACTIVATE_PX = 10;
 
@@ -71,6 +73,7 @@ function BrandMark() {
 
 export function Header() {
   const location = useLocation();
+  const mixerMode = isMixerRoute(location.pathname);
   const { shell, openFromDock } = useRadioFmUi();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -123,6 +126,7 @@ export function Header() {
           </NavLink>
         </nav>
         <div className="header-cta">
+          {mixerMode ? <MixerHeaderMidi /> : null}
           <NavLink className="btn header-area-dj" to={AREA_DJ_LINK.to} onClick={() => setOpen(false)}>
             {AREA_DJ_LINK.label}
           </NavLink>

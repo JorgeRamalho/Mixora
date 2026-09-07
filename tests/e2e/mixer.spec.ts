@@ -48,6 +48,7 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
         heightDelta: Math.abs(a.height - m.height),
         overflowX,
         hotpads: document.querySelectorAll(".cdj-performance-pad").length,
+        inlinePlaylists: document.querySelectorAll(".deck-playlist[data-variant='inline']").length,
         pitchBeside,
         eqBoostButtons,
         unlabeled: [...document.querySelectorAll(".mixer-cabinet button, .mixer-cabinet input")].filter(
@@ -69,7 +70,8 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
     expect(metrics.gapAM).toBeGreaterThanOrEqual(8);
     expect(metrics.gapMB).toBeGreaterThanOrEqual(8);
     expect(metrics.overflowX).toBeLessThanOrEqual(8);
-    expect(metrics.hotpads).toBe(8);
+    expect(metrics.hotpads).toBe(0);
+    expect(metrics.inlinePlaylists).toBe(2);
     expect(metrics.pitchBeside).toEqual([true, true]);
     expect(metrics.eqBoostButtons).toBe(0);
     expect(metrics.unlabeled).toBe(0);
@@ -174,5 +176,28 @@ test.describe("Mixer CDJ — layout, usabilidade e acessibilidade", () => {
       });
     });
     expect(order).toEqual(["head", "a", "mixer", "b"]);
+  });
+
+  test("modo ampliado: oculta a barra interna e realoca browse para a status bar", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/mixer");
+
+    await page.getByRole("button", { name: "Ocultar barra da cabine e ampliar decks" }).click();
+
+    await expect(page.locator(".mixer-cabinet-head")).toHaveCount(0);
+    await expect(page.locator(".mixer-board")).toHaveAttribute("data-cabinet-head-hidden", "true");
+    await expect(page.locator(".mixer-status-chrome")).toBeVisible();
+    await expect(page.getByRole("radiogroup", { name: "Fonte da biblioteca" })).toBeVisible();
+
+    const order = await page.evaluate(() => {
+      const board = document.querySelector(".mixer-board");
+      if (!board) return [];
+      return [...board.children].map((el) => {
+        if (el.classList.contains("mixer-cabinet-head")) return "head";
+        if (el.classList.contains("mixer-console")) return "mixer";
+        return el.getAttribute("data-deck");
+      });
+    });
+    expect(order).toEqual(["a", "mixer", "b"]);
   });
 });

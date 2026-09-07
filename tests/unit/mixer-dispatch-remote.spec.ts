@@ -32,6 +32,16 @@ describe("mixer-dispatch remote vs local LOAD", () => {
     });
   });
 
+  test("browseHome alterna entre decks no plano resolvido", () => {
+    const { eng, browseByDeck } = setup();
+    expect(
+      resolveMixerAction(eng, browseByDeck, () => "a", { type: "browseHome" }, "local"),
+    ).toEqual({ kind: "browse-switch-deck", nextDeck: "b" });
+    expect(
+      resolveMixerAction(eng, browseByDeck, () => "b", { type: "browseHome" }, "local"),
+    ).toEqual({ kind: "browse-switch-deck", nextDeck: "a" });
+  });
+
   test("requestDeckLoad remoto usa o mesmo plano do browseLoad", () => {
     const { eng, browseByDeck } = setup();
     const ops: unknown[] = [];
@@ -39,7 +49,8 @@ describe("mixer-dispatch remote vs local LOAD", () => {
       {
         eng,
         browseByDeck,
-        getMasterDeck: () => "a",
+        getBrowseActiveDeck: () => "a",
+        setBrowseActiveDeck: () => undefined,
         dispatchReducer: () => undefined,
         getBrowseSource: () => "remote",
         onUiOp: (op) => ops.push(op),

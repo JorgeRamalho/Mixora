@@ -1,15 +1,17 @@
-import { parseBpmFromFilename, titleFromFilename } from "./deck-metadata";
+import { parseBpmFromFilename, parseCamelotFromFilename, titleFromFilename } from "./deck-metadata";
 
 export interface DecodedDeckFile {
   buffer: AudioBuffer;
   durationSec: number;
   title: string;
   bpm?: number;
+  key?: string;
 }
 
 export interface DecodeDeckMeta {
   title?: string;
   bpm?: number;
+  key?: string;
 }
 
 /**
@@ -41,6 +43,7 @@ export async function decodeDeckBuffer(
     durationSec: buffer.duration,
     title: meta.title ?? "faixa",
     bpm: meta.bpm,
+    key: meta.key,
   };
 }
 
@@ -55,5 +58,6 @@ export async function decodeDeckFile(ctx: AudioContext, file: File): Promise<Dec
   return decodeDeckBuffer(ctx, data, {
     title: titleFromFilename(file.name),
     bpm: parseBpmFromFilename(file.name),
+    key: parseCamelotFromFilename(file.name),
   });
 }

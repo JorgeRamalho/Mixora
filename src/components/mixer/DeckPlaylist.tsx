@@ -1,10 +1,12 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties, type WheelEvent as ReactWheelEvent } from "react";
 import { getCamelotKey } from "../../lib/musical-key";
 import type { BrowseSource, BrowseTrackItem, DeckId } from "../../types/mixer";
 
 type DeckPlaylistProps = {
   deckId: DeckId;
-  side: "left" | "right";
+  /** `inline` encaixa a lista no rodapé do deck CDJ. */
+  variant?: "sidebar" | "inline";
+  side?: "left" | "right";
   tracks: readonly BrowseTrackItem[];
   loadedTrackId: string;
   browseCursor: number;
@@ -12,19 +14,22 @@ type DeckPlaylistProps = {
   libraryLoading: boolean;
   browseKeyFilter: string | null;
   keyFilterFlash: number;
+  /** Destaca a playlist quando o encoder BROWSE navega este deck. */
+  browseActive?: boolean;
   /** Cor Camelot da faixa carregada no deck, para o halo ambiente. */
   camelotColor: string;
   onSelectTrack: (trackId: string) => void;
 };
 
 /**
- * Lista lateral de faixas com iluminação Camelot, espelhando o visor do deck.
+ * Lista de faixas com iluminação Camelot, espelhando o visor do deck.
  *
  * @param props Configuração da playlist e callbacks de carregamento.
  */
 export function DeckPlaylist({
   deckId,
-  side,
+  variant = "sidebar",
+  side = "left",
   tracks,
   loadedTrackId,
   browseCursor,
@@ -32,6 +37,7 @@ export function DeckPlaylist({
   libraryLoading,
   browseKeyFilter,
   keyFilterFlash,
+  browseActive = false,
   camelotColor,
   onSelectTrack,
 }: DeckPlaylistProps) {
@@ -61,6 +67,22 @@ export function DeckPlaylist({
     focused?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [browseCursor, tracks.length]);
 
+  /**
+   * Mantém a rolagem da lista dentro do painel quando o mouse usa a roda.
+   *
+   * @param event Evento de rolagem do ponteiro sobre a lista.
+   */
+  const handleListWheel = (event: ReactWheelEvent<HTMLUListElement>) => {
+    const list = listRef.current;
+    if (!list) return;
+    const canScroll = list.scrollHeight > list.clientHeight;
+    if (!canScroll) return;
+    const atTop = list.scrollTop <= 0;
+    const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+    if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) return;
+    event.stopPropagation();
+  };
+
   const sourceLabel =
     browseSource === "remote" ? "Biblioteca · API online" : "USB · treino Mamute";
 
@@ -69,7 +91,9 @@ export function DeckPlaylist({
       ref={panelRef}
       className="deck-playlist"
       data-deck={deckId}
-      data-side={side}
+      data-variant={variant}
+      data-side={variant === "sidebar" ? side : undefined}
+      data-browse-active={browseActive ? "true" : "false"}
       data-browse-key={browseKeyFilter ?? undefined}
       style={panelStyle}
       aria-label={`Biblioteca deck ${deckId.toUpperCase()}`}
@@ -80,6 +104,7 @@ export function DeckPlaylist({
         <span className="deck-playlist-source">
           {sourceLabel}
           {browseKeyFilter ? ` · ${browseKeyFilter}` : ""}
+          {browseActive ? " · BROWSE" : ""}
         </span>
       </header>
 
@@ -88,6 +113,7 @@ export function DeckPlaylist({
         className="deck-playlist-list"
         role="listbox"
         aria-label={`Faixas deck ${deckId.toUpperCase()}`}
+        onWheel={handleListWheel}
       >
         {libraryLoading && tracks.length === 0 ? (
           <li className="deck-playlist-empty" role="presentation">Carregando biblioteca…</li>

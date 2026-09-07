@@ -30,11 +30,11 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const { eng } = createFakeEngine();
     const idle = createIdleBrowse();
 
-    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getMasterDeck, { type: "cuePress", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getBrowseActiveDeck, { type: "cuePress", id: "a" })).toEqual({
       kind: "engine-cue-press",
       id: "a",
     });
-    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getMasterDeck, { type: "cueRelease", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getBrowseActiveDeck, { type: "cueRelease", id: "a" })).toEqual({
       kind: "engine-cue-release",
       id: "a",
     });
@@ -47,7 +47,8 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const dispatch = createMixerDispatch({
       eng,
       browseByDeck: idle.browseByDeck,
-      getMasterDeck: idle.getMasterDeck,
+      getBrowseActiveDeck: idle.getBrowseActiveDeck,
+      setBrowseActiveDeck: idle.setBrowseActiveDeck,
       dispatchReducer: (action) => {
         received.push(action);
         applyAbsoluteAction(eng, action);
@@ -70,7 +71,8 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const dispatch = createMixerDispatch({
       eng,
       browseByDeck: idle.browseByDeck,
-      getMasterDeck: idle.getMasterDeck,
+      getBrowseActiveDeck: idle.getBrowseActiveDeck,
+      setBrowseActiveDeck: idle.setBrowseActiveDeck,
       dispatchReducer: (action) => received.push(action),
     });
 
@@ -91,6 +93,29 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     expect(calls).toEqual(["toggleLoop", "toggleLoop"]);
   });
 
+  test("browseHome alterna o deck ativo do encoder BROWSE", () => {
+    let activeDeck: DeckId = "a";
+    const { eng } = createFakeEngine();
+    const idle = createIdleBrowse();
+    const dispatch = createMixerDispatch({
+      eng,
+      browseByDeck: idle.browseByDeck,
+      getBrowseActiveDeck: () => activeDeck,
+      setBrowseActiveDeck: (deckId) => {
+        activeDeck = deckId;
+      },
+      dispatchReducer: () => {
+        throw new Error("browse não pode tocar no reducer");
+      },
+    });
+
+    dispatch({ type: "browseHome" });
+    expect(activeDeck).toBe("b");
+
+    dispatch({ type: "browseHome" });
+    expect(activeDeck).toBe("a");
+  });
+
   test("browseLoad arma o picker de arquivo do deck", () => {
     const { eng } = createFakeEngine();
     const idle = createIdleBrowse();
@@ -99,7 +124,9 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
       {
         eng,
         browseByDeck: idle.browseByDeck,
-        getMasterDeck: idle.getMasterDeck,
+        getBrowseActiveDeck: idle.getBrowseActiveDeck,
+      setBrowseActiveDeck: idle.setBrowseActiveDeck,
+        setBrowseActiveDeck: idle.setBrowseActiveDeck,
         dispatchReducer: () => undefined,
         onUiOp: (op) => ops.push(op),
       },
@@ -134,7 +161,8 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const dispatch = createMixerDispatch({
       eng,
       browseByDeck,
-      getMasterDeck: () => "a",
+      getBrowseActiveDeck: () => "a",
+      setBrowseActiveDeck: () => undefined,
       dispatchReducer: () => {
         throw new Error("browse não pode tocar no reducer");
       },
@@ -163,7 +191,8 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const dispatch = createMixerDispatch({
       eng,
       browseByDeck: idle.browseByDeck,
-      getMasterDeck: idle.getMasterDeck,
+      getBrowseActiveDeck: idle.getBrowseActiveDeck,
+      setBrowseActiveDeck: idle.setBrowseActiveDeck,
       dispatchReducer: () => undefined,
       onUiOp: (op) => ops.push(op),
     });
@@ -178,7 +207,8 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const dispatch = createMixerDispatch({
       eng,
       browseByDeck: idle.browseByDeck,
-      getMasterDeck: idle.getMasterDeck,
+      getBrowseActiveDeck: idle.getBrowseActiveDeck,
+      setBrowseActiveDeck: idle.setBrowseActiveDeck,
       dispatchReducer: () => undefined,
     });
     dispatch({ type: "loadDeckFile", id: "a", file });
@@ -301,7 +331,8 @@ function createIdleBrowse(snapshot: () => MixerSnapshot = () => createFakeEngine
   });
   return {
     browseByDeck: { a: browse, b: browse },
-    getMasterDeck: () => "a" as DeckId,
+    getBrowseActiveDeck: () => "a" as DeckId,
+    setBrowseActiveDeck: () => undefined,
     readCursor: () => cursor,
   };
 }

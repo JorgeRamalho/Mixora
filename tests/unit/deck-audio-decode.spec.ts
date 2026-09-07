@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { decodeDeckBuffer, decodeDeckFile } from "../../src/lib/deck-audio-decode";
-import { parseBpmFromFilename, titleFromFilename } from "../../src/lib/deck-metadata";
+import {
+  parseBpmFromFilename,
+  parseCamelotFromFilename,
+  titleFromFilename,
+} from "../../src/lib/deck-metadata";
 import { MockAudioContext } from "../helpers/mock-audio-context";
 
 describe("deck-audio-decode", () => {
@@ -35,5 +39,21 @@ describe("deck-audio-decode", () => {
     expect(parseBpmFromFilename("kick-120bpm.mp3")).toBe(120);
     expect(parseBpmFromFilename("faixa.mp3")).toBeUndefined();
     expect(titleFromFilename("pasta/kick-120bpm.mp3")).toBe("kick-120bpm");
+  });
+
+  test("parseCamelotFromFilename reconhece o código no nome", () => {
+    expect(parseCamelotFromFilename("04. (6B) glacial - scuba.mp3")).toBe("6B");
+    expect(parseCamelotFromFilename("pasta/[8A] kick.wav")).toBe("8A");
+    expect(parseCamelotFromFilename("faixa 11a mix.mp3")).toBe("11A");
+    expect(parseCamelotFromFilename("sem tom.mp3")).toBeUndefined();
+  });
+
+  test("decodeDeckFile infere a key Camelot do nome", async () => {
+    const ctx = new MockAudioContext();
+    const file = new File([new Uint8Array(2048)], "04. (6B) glacial - scuba.mp3", {
+      type: "audio/mpeg",
+    });
+    const decoded = await decodeDeckFile(ctx as unknown as AudioContext, file);
+    expect(decoded.key).toBe("6B");
   });
 });

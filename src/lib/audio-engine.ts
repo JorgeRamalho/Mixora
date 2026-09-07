@@ -424,6 +424,7 @@ export class MamuteEngine {
     this.loadDeckBuffer(id, decoded.buffer, {
       title: decoded.title,
       bpm: decoded.bpm,
+      key: decoded.key,
       durationSec: decoded.durationSec,
     });
   }

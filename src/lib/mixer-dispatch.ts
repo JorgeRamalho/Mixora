@@ -83,7 +83,7 @@ export type DispatchResult =
 export type ResolvedPlan =
   | { kind: "noop" }
   | { kind: "browse-move"; deckId: DeckId; nextCursor: number }
-  | { kind: "browse-home"; deckId: DeckId; nextCursor: number }
+  | { kind: "browse-switch-deck"; nextDeck: DeckId }
   | { kind: "absolute"; action: MixerAction }
   | { kind: "engine-toggle"; id: DeckId }
   | { kind: "engine-loop"; id: DeckId }
@@ -105,7 +105,8 @@ export type ResolvedPlan =
 export type MixerDispatchDeps = {
   eng: MixerEngine;
   browseByDeck: Record<DeckId, BrowseState>;
-  getMasterDeck: () => DeckId;
+  getBrowseActiveDeck: () => DeckId;
+  setBrowseActiveDeck: (deckId: DeckId) => void;
   dispatchReducer: (action: MixerAction) => void;
   onUiOp?: (op: MixerUiOp) => void;
   getBrowseSource?: () => BrowseSource;
@@ -224,13 +225,13 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
  *
  * @param eng Engine de onde ler playing, loop e hot cues.
  * @param browseByDeck Cursor da biblioteca por deck.
- * @param getMasterDeck Deck cujo encoder BROWSE move a lista central.
+ * @param getBrowseActiveDeck Deck cuja playlist o encoder BROWSE navega.
  * @param action Ação crua do mouse ou do MIDI.
  */
 export function resolveMixerAction(
   eng: MixerEngine,
   browseByDeck: Record<DeckId, BrowseState>,
-  getMasterDeck: () => DeckId,
+  getBrowseActiveDeck: () => DeckId,
   action: MixerAction,
   browseSource: BrowseSource = "local",
 ): ResolvedPlan {
@@ -300,14 +301,14 @@ export function resolveMixerAction(
     case "nudge":
       return { kind: "engine-nudge", id: action.id, direction: action.direction };
     case "browseMove": {
-      const deckId = getMasterDeck();
+      const deckId = getBrowseActiveDeck();
       const browse = browseByDeck[deckId];
       return { kind: "browse-move", deckId, nextCursor: browse.getCursor() + action.delta };
     }
     case "browseHome": {
-      const deckId = getMasterDeck();
-      const browse = browseByDeck[deckId];
-      return { kind: "browse-home", deckId, nextCursor: browse.masterTrackIndex() };
+      const current = getBrowseActiveDeck();
+      const nextDeck = current === "a" ? "b" : "a";
+      return { kind: "browse-switch-deck", nextDeck };
     }
     case "browseLoad":
       return resolveLoadPlan(browseByDeck[action.id], action.id, browseSource, "arm");
@@ -341,7 +342,7 @@ export function dispatchMixerAction(
   const plan = resolveMixerAction(
     deps.eng,
     deps.browseByDeck,
-    deps.getMasterDeck,
+    deps.getBrowseActiveDeck,
     action,
     deps.getBrowseSource?.() ?? "local",
   );
@@ -350,8 +351,10 @@ export function dispatchMixerAction(
     case "noop":
       return { kind: "noop" };
     case "browse-move":
-    case "browse-home":
       deps.browseByDeck[plan.deckId].setCursor(plan.nextCursor);
+      return { kind: "ui-only" };
+    case "browse-switch-deck":
+      deps.setBrowseActiveDeck(plan.nextDeck);
       return { kind: "ui-only" };
     case "absolute":
       deps.dispatchReducer(plan.action);

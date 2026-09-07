@@ -30,10 +30,15 @@ import {
   getBrowseSessionSnapshot,
   resetBrowseSessionForSourceChange,
   seedBrowseSessionIfPristine,
+  setBrowseActiveDeck,
   setBrowseCursor,
   subscribeBrowseSession,
   updateBrowseSession,
 } from "../../lib/mixer-browse-session";
+import {
+  loadCabinetHeadHidden,
+  saveCabinetHeadHidden,
+} from "../../lib/mixer-cabinet-head";
 import { applyAbsoluteAction, createMixerDispatch } from "../../lib/mixer-dispatch";
 import { cloneMixerSnapshot } from "../../lib/mixer-snapshot";
 import { getCamelotKey, normalizeCamelotCode } from "../../lib/musical-key";
@@ -46,10 +51,11 @@ import { useTrackLibrary } from "../../lib/tracks-api/hooks/use-track-library";
 import type { BrowseSource, DeckId, MixerAction, MixerSnapshot } from "../../types/mixer";
 import { BrowseChip } from "./BrowseChip";
 import { BrowseSourceToggle } from "./BrowseSourceToggle";
+import { CabinetHeadToggle } from "./CabinetHeadToggle";
 import { CdjCamelotPicker } from "./CdjCamelotPicker";
 import { CdjDeck } from "./CdjDeck";
-import { DeckPlaylist } from "./DeckPlaylist";
 import { MidiStatus } from "./MidiStatus";
+import { MixerChromeBridge } from "./MixerChromeBridge";
 import { MixerConsole } from "./MixerConsole";
 
 /**
@@ -80,7 +86,9 @@ export function MixerBoard() {
     getBrowseSessionSnapshot,
     getBrowseSessionSnapshot,
   );
-  const { cursorByDeck, browseKeyFilterByDeck, browseCamelotMode } = browseSession;
+  const { cursorByDeck, browseKeyFilterByDeck, browseCamelotMode, browseActiveDeck } =
+    browseSession;
+  const [cabinetHeadHidden, setCabinetHeadHidden] = useState(() => loadCabinetHeadHidden());
   const [camelotPickerDeck, setCamelotPickerDeck] = useState<DeckId | null>(null);
   const [keyFilterFlashByDeck, setKeyFilterFlashByDeck] = useState<Record<DeckId, number>>({ a: 0, b: 0 });
 
@@ -133,10 +141,10 @@ export function MixerBoard() {
 
   const cursorRef = useRef(cursorByDeck);
   const browseSourceRef = useRef(browseSource);
-  const masterDeckRef = useRef(snap.masterDeck);
+  const browseActiveDeckRef = useRef(browseActiveDeck);
   const dispatchActionRef = useRef<ReturnType<typeof createMixerDispatch> | null>(null);
 
-  masterDeckRef.current = snap.masterDeck;
+  browseActiveDeckRef.current = browseActiveDeck;
   browseSourceRef.current = browseSource;
   cursorRef.current = cursorByDeck;
 
@@ -149,6 +157,14 @@ export function MixerBoard() {
     setBrowseSource(source);
     resetBrowseSessionForSourceChange();
     setCamelotPickerDeck(null);
+  }, []);
+
+  const toggleCabinetHead = useCallback(() => {
+    setCabinetHeadHidden((current) => {
+      const next = !current;
+      saveCabinetHeadHidden(next);
+      return next;
+    });
   }, []);
 
   const openCamelotPicker = useCallback((deckId: DeckId) => {
@@ -240,7 +256,8 @@ export function MixerBoard() {
       createMixerDispatch({
         eng: engine,
         browseByDeck,
-        getMasterDeck: () => masterDeckRef.current,
+        getBrowseActiveDeck: () => browseActiveDeckRef.current,
+        setBrowseActiveDeck: (deckId) => setBrowseActiveDeck(deckId),
         dispatchReducer: dispatch,
         getBrowseSource: () => browseSourceRef.current,
         onUiOp: (op) => {
@@ -257,14 +274,13 @@ export function MixerBoard() {
 
   const midi = useMidiController(dispatchAction);
   const masterKey = snap[snap.masterDeck].track.key;
-  const masterDeck = snap.masterDeck;
-  const masterBrowseTracks = browseTracksByDeck[masterDeck];
+  const activeBrowseTracks = browseTracksByDeck[browseActiveDeck];
   const safeCursorByDeck = {
     a: wrapCursor(cursorByDeck.a, browseTracksByDeck.a.length),
     b: wrapCursor(cursorByDeck.b, browseTracksByDeck.b.length),
   };
-  const safeMasterCursor = safeCursorByDeck[masterDeck];
-  const browseTrack = masterBrowseTracks[safeMasterCursor] ?? null;
+  const safeActiveBrowseCursor = safeCursorByDeck[browseActiveDeck];
+  const browseTrack = activeBrowseTracks[safeActiveBrowseCursor] ?? null;
   const camelotPickerSelected =
     camelotPickerDeck === null
       ? "8A"
@@ -279,10 +295,10 @@ export function MixerBoard() {
   const libraryError = libraryA.isError || libraryB.isError;
   const remoteIds = useMemo(() => {
     if (browseSource !== "remote") return [];
-    const masterTracks =
-      masterDeck === "a" ? libraryA.data?.tracks : libraryB.data?.tracks;
-    return masterTracks ?? [];
-  }, [browseSource, masterDeck, libraryA.data?.tracks, libraryB.data?.tracks]);
+    const activeTracks =
+      browseActiveDeck === "a" ? libraryA.data?.tracks : libraryB.data?.tracks;
+    return activeTracks ?? [];
+  }, [browseActiveDeck, browseSource, libraryA.data?.tracks, libraryB.data?.tracks]);
   const boardStyle = useMemo(
     () =>
       ({
@@ -292,7 +308,7 @@ export function MixerBoard() {
     [snap.a.track.key, snap.b.track.key],
   );
 
-  usePrefetchAdjacentTracks(remoteIds, safeMasterCursor);
+  usePrefetchAdjacentTracks(remoteIds, safeActiveBrowseCursor);
   useTrackDetail(browseSource === "remote" ? (browseTrack?.id ?? null) : null);
   const { markPainted } = midi;
 
@@ -332,79 +348,103 @@ export function MixerBoard() {
 
   return (
     <div className="mixer-cabinet" data-browse-source={browseSource}>
+      <MixerChromeBridge
+        browseSource={browseSource}
+        changeBrowseSource={changeBrowseSource}
+        browseTrack={browseTrack}
+        browsePosition={safeActiveBrowseCursor + 1}
+        browseTotal={activeBrowseTracks.length}
+        browseLoading={libraryLoading}
+        activeDeck={browseActiveDeck}
+        pendingLoad={pendingLoad}
+        libraryError={libraryError}
+        cabinetHeadHidden={cabinetHeadHidden}
+        midiStatus={midi.status}
+        midiDeviceName={midi.deviceName}
+        midiPorts={midi.ports}
+        midiLastHeard={midi.lastHeard}
+        midiError={midi.error}
+        midiLive={midi.live}
+        midiLatency={midi.latency}
+        onConnectMidi={midi.connect}
+        toggleCabinetHead={toggleCabinetHead}
+      />
       <div className="mixer-stage" data-stage="4">
-        <DeckPlaylist
-          deckId="a"
-          side="left"
-          tracks={browseTracksByDeck.a}
-          loadedTrackId={snap.a.track.id}
-          browseCursor={safeCursorByDeck.a}
-          browseSource={browseSource}
-          libraryLoading={libraryLoadingByDeck.a}
-          browseKeyFilter={browseKeyFilterByDeck.a}
-          keyFilterFlash={keyFilterFlashByDeck.a}
-          camelotColor={getCamelotKey(snap.a.track.key)?.color ?? "#8b8fa8"}
-          onSelectTrack={(trackId) => {
-            if (browseSource === "remote") {
-              dispatchAction({ type: "loadRemoteTrack", id: "a", trackId });
-              return;
-            }
-            dispatchAction({ type: "loadTrack", id: "a", trackId });
-          }}
-        />
-
-        <div className="mixer-board" style={boardStyle}>
-          <header className="mixer-cabinet-head">
-            <div className="mixer-cabinet-head__source">
-              <BrowseSourceToggle value={browseSource} onChange={changeBrowseSource} />
-            </div>
-            <div className="mixer-cabinet-head__center">
-              {pendingLoad ? (
-                <p
-                  className="mixer-board-message mixer-board-message--pending"
-                  role="status"
-                  title={`LOAD na DDJ-400: clique na tela para escolher o áudio do deck ${pendingLoad.toUpperCase()}.`}
-                >
-                  LOAD deck {pendingLoad.toUpperCase()}: clique na tela
-                </p>
-              ) : null}
-              {libraryError ? (
-                <p
-                  className="mixer-board-message mixer-board-message--error"
-                  role="alert"
-                  title="Não foi possível listar a biblioteca remota. Confira o MusicDiscover em http://127.0.0.1:8765 ou volte ao USB de treino."
-                >
-                  Biblioteca remota indisponível — volte ao USB ou confira o MusicDiscover
-                </p>
-              ) : null}
-              <BrowseChip
-                track={browseTrack}
-                position={safeMasterCursor + 1}
-                total={masterBrowseTracks.length}
-                source={browseSource}
-                loading={libraryLoading}
-              />
-            </div>
-            <div className="mixer-cabinet-head__midi">
-              <MidiStatus
-                status={midi.status}
-                deviceName={midi.deviceName}
-                ports={midi.ports}
-                lastHeard={midi.lastHeard}
-                error={midi.error}
-                live={midi.live}
-                latency={midi.latency}
-                onConnect={midi.connect}
-              />
-            </div>
-          </header>
+        <div
+          className="mixer-board"
+          style={boardStyle}
+          data-cabinet-head-hidden={cabinetHeadHidden ? "true" : "false"}
+        >
+          {!cabinetHeadHidden ? (
+            <header className="mixer-cabinet-head">
+              <div className="mixer-cabinet-head__source">
+                <BrowseSourceToggle value={browseSource} onChange={changeBrowseSource} />
+              </div>
+              <div className="mixer-cabinet-head__center">
+                {pendingLoad ? (
+                  <p
+                    className="mixer-board-message mixer-board-message--pending"
+                    role="status"
+                    title={`LOAD na DDJ-400: clique na tela para escolher o áudio do deck ${pendingLoad.toUpperCase()}.`}
+                  >
+                    LOAD deck {pendingLoad.toUpperCase()}: clique na tela
+                  </p>
+                ) : null}
+                {libraryError ? (
+                  <p
+                    className="mixer-board-message mixer-board-message--error"
+                    role="alert"
+                    title="Não foi possível listar a biblioteca remota. Confira o MusicDiscover em http://127.0.0.1:8765 ou volte ao USB de treino."
+                  >
+                    Biblioteca remota indisponível — volte ao USB ou confira o MusicDiscover
+                  </p>
+                ) : null}
+                <BrowseChip
+                  track={browseTrack}
+                  position={safeActiveBrowseCursor + 1}
+                  total={activeBrowseTracks.length}
+                  source={browseSource}
+                  loading={libraryLoading}
+                  activeDeck={browseActiveDeck}
+                />
+              </div>
+              <div className="mixer-cabinet-head__actions">
+                <CabinetHeadToggle hidden={cabinetHeadHidden} onToggle={toggleCabinetHead} />
+                <div className="mixer-cabinet-head__midi">
+                  <MidiStatus
+                    status={midi.status}
+                    deviceName={midi.deviceName}
+                    ports={midi.ports}
+                    lastHeard={midi.lastHeard}
+                    error={midi.error}
+                    live={midi.live}
+                    latency={midi.latency}
+                    onConnect={midi.connect}
+                  />
+                </div>
+              </div>
+            </header>
+          ) : null}
           <CdjDeck
             id="a"
             masterKey={masterKey}
+            midiConnected={midi.status === "connected"}
             loadPending={pendingLoad === "a"}
             browseSource={browseSource}
             libraryLoading={libraryLoadingByDeck.a}
             browseKeyFilter={browseKeyFilterByDeck.a}
+            browseActive={browseActiveDeck === "a"}
+            playlistTracks={browseTracksByDeck.a}
+            loadedTrackId={snap.a.track.id}
+            browseCursor={safeCursorByDeck.a}
+            keyFilterFlash={keyFilterFlashByDeck.a}
+            onSelectTrack={(trackId) => {
+              if (browseSource === "remote") {
+                dispatchAction({ type: "loadRemoteTrack", id: "a", trackId });
+                return;
+              }
+              dispatchAction({ type: "loadTrack", id: "a", trackId });
+            }}
             onKeyMetricClick={() => openCamelotPicker("a")}
             remoteLoad={remote.byDeck.a}
             onRetryRemote={() => {
@@ -420,10 +460,23 @@ export function MixerBoard() {
           <CdjDeck
             id="b"
             masterKey={masterKey}
+            midiConnected={midi.status === "connected"}
             loadPending={pendingLoad === "b"}
             browseSource={browseSource}
             libraryLoading={libraryLoadingByDeck.b}
             browseKeyFilter={browseKeyFilterByDeck.b}
+            browseActive={browseActiveDeck === "b"}
+            playlistTracks={browseTracksByDeck.b}
+            loadedTrackId={snap.b.track.id}
+            browseCursor={safeCursorByDeck.b}
+            keyFilterFlash={keyFilterFlashByDeck.b}
+            onSelectTrack={(trackId) => {
+              if (browseSource === "remote") {
+                dispatchAction({ type: "loadRemoteTrack", id: "b", trackId });
+                return;
+              }
+              dispatchAction({ type: "loadTrack", id: "b", trackId });
+            }}
             onKeyMetricClick={() => openCamelotPicker("b")}
             remoteLoad={remote.byDeck.b}
             onRetryRemote={() => {
@@ -436,26 +489,6 @@ export function MixerBoard() {
             onChange={dispatchAction}
           />
         </div>
-
-        <DeckPlaylist
-          deckId="b"
-          side="right"
-          tracks={browseTracksByDeck.b}
-          loadedTrackId={snap.b.track.id}
-          browseCursor={safeCursorByDeck.b}
-          browseSource={browseSource}
-          libraryLoading={libraryLoadingByDeck.b}
-          browseKeyFilter={browseKeyFilterByDeck.b}
-          keyFilterFlash={keyFilterFlashByDeck.b}
-          camelotColor={getCamelotKey(snap.b.track.key)?.color ?? "#8b8fa8"}
-          onSelectTrack={(trackId) => {
-            if (browseSource === "remote") {
-              dispatchAction({ type: "loadRemoteTrack", id: "b", trackId });
-              return;
-            }
-            dispatchAction({ type: "loadTrack", id: "b", trackId });
-          }}
-        />
       </div>
 
       <CdjCamelotPicker

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   consumeLoadClickSuppression,
   deckFileInputId,
@@ -8,6 +14,8 @@ import { pitchSliderStyle } from "../../lib/range-slider-style";
 import { engine } from "../../lib/audio-engine";
 import { getCamelotKey, harmonicDistance, resolveMusicalKey } from "../../lib/musical-key";
 import type { BrowseSource, DeckId, MixerAction } from "../../types";
+import type { BrowseTrackItem } from "../../types/mixer";
+import { DeckPlaylist } from "./DeckPlaylist";
 
 /** Fração da faixa visível no modo zoom, centrada no playhead. */
 const WAVE_ZOOM_WINDOW = 0.14;
@@ -132,6 +140,41 @@ function Waveform({
   );
 }
 
+/**
+ * Ícone de eject para o botão LOAD do deck.
+ */
+function EjectIcon() {
+  return (
+    <svg className="cdj-eject-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4 4 12h5v6h6v-6h5L12 4z" fill="currentColor" />
+      <rect x="5" y="19" width="14" height="2" rx="0.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * Texto do tooltip do LOAD conforme a fonte ativa do browse.
+ *
+ * @param browseSource Fonte USB local ou biblioteca remota.
+ */
+function loadTooltipCopy(browseSource: BrowseSource): string {
+  if (browseSource === "remote") {
+    return "Carregar a música selecionada no browse";
+  }
+  return "Carregar arquivo de áudio no deck";
+}
+
+/**
+ * Rótulo do hardware exibido no topo do deck.
+ *
+ * @param id Lado da cabine.
+ * @param midiConnected Indica se a DDJ-400 está conectada.
+ */
+function deckHardwareLabel(id: DeckId, midiConnected: boolean): string {
+  if (midiConnected) return "DDJ-400";
+  return id === "a" ? "CDJ-3000" : "CDJ-3000XJ";
+}
+
 function JogWheel({
   id,
   playing,
@@ -186,10 +229,17 @@ export function CdjDeck({
   masterKey,
   loadPending = false,
   browseSource = "local",
+  midiConnected = false,
   libraryLoading = false,
   remoteLoad,
   onRetryRemote,
   browseKeyFilter = null,
+  browseActive = false,
+  playlistTracks = [],
+  loadedTrackId = "",
+  browseCursor = 0,
+  keyFilterFlash = 0,
+  onSelectTrack,
   onKeyMetricClick,
   onLoadPrepare,
   onFile,
@@ -199,12 +249,21 @@ export function CdjDeck({
   masterKey: string;
   loadPending?: boolean;
   browseSource?: BrowseSource;
+  /** DDJ-400 conectada via Web MIDI — troca o rótulo do hardware. */
+  midiConnected?: boolean;
   /** Biblioteca remota ainda sem primeira resposta da API. */
   libraryLoading?: boolean;
   remoteLoad?: { status: string; message?: string };
   onRetryRemote?: () => void;
   /** Filtro Camelot ativo na biblioteca compartilhada. */
   browseKeyFilter?: string | null;
+  /** Indica se o encoder BROWSE navega esta playlist no momento. */
+  browseActive?: boolean;
+  playlistTracks?: readonly BrowseTrackItem[];
+  loadedTrackId?: string;
+  browseCursor?: number;
+  keyFilterFlash?: number;
+  onSelectTrack?: (trackId: string) => void;
   /** Abre a roda Camelot para escolher o filtro de tom. */
   onKeyMetricClick?: () => void;
   /** Limpa o arm do LOAD MIDI antes do gesto nativo do arquivo. */
@@ -224,6 +283,8 @@ export function CdjDeck({
   const remoteCopy = remoteLoadCopy(remoteLoad?.status, remoteLoad?.message);
   const camelotColor = getCamelotKey(deck.track.key)?.color ?? "#8b8fa8";
   const deckStyle = { "--camelot-color": camelotColor } as CSSProperties;
+  const loadTooltip = loadTooltipCopy(browseSource);
+  const hardwareLabel = deckHardwareLabel(id, midiConnected);
 
   const pitchInputValue = -deck.pitch;
   const pitchFader = (
@@ -271,13 +332,50 @@ export function CdjDeck({
     >
       <header className="cdj-deck-top">
         <div className="cdj-brand">
-          <span className="cdj-brand-mark">{id === "a" ? "CDJ-3000" : "CDJ-3000XJ"}</span>
+          <span className="cdj-brand-mark">{hardwareLabel}</span>
           <span className="cdj-brand-grid">{deck.track.grid}</span>
         </div>
-        <div className="cdj-status-leds" aria-hidden="true">
-          <span data-on={deck.sync ? "true" : "false"}>SYNC</span>
-          <span data-on={deck.masterTempo ? "true" : "false"}>M.TEMPO</span>
-          <span data-on={deck.loop.active ? "true" : "false"}>LOOP</span>
+        <div className="cdj-deck-top-end">
+          <button
+            type="button"
+            className="cdj-btn cdj-btn--load cdj-btn--eject"
+            data-deck-load={id}
+            data-pending={loadPending ? "true" : "false"}
+            aria-label={`Carregar deck ${id.toUpperCase()}: ${loadTooltip}`}
+            title={loadTooltip}
+            disabled={libraryLoading && browseSource === "remote"}
+            onClick={() => {
+              if (browseSource === "remote") {
+                onChange({ type: "requestDeckLoad", id });
+                return;
+              }
+              if (consumeLoadClickSuppression()) return;
+              onLoadPrepare?.();
+              void openDeckFileDialog(id, onFile);
+            }}
+          >
+            <EjectIcon />
+            <span className="cdj-load-tooltip" role="tooltip">{loadTooltip}</span>
+          </button>
+          <input
+            id={deckFileInputId(id)}
+            type="file"
+            className="mixer-deck-file-input"
+            accept="audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg"
+            data-deck-file={id}
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) onFile(file);
+            }}
+          />
+          <div className="cdj-status-leds" aria-hidden="true">
+            <span data-on={deck.sync ? "true" : "false"}>SYNC</span>
+            <span data-on={deck.masterTempo ? "true" : "false"}>M.TEMPO</span>
+            <span data-on={deck.loop.active ? "true" : "false"}>LOOP</span>
+          </div>
         </div>
       </header>
 
@@ -338,54 +436,20 @@ export function CdjDeck({
             </span>
           </div>
         </div>
+        <div className="cdj-display-wave">
+          <Waveform
+            id={id}
+            phase={deck.phase}
+            spinning={deck.playing}
+            peaks={deck.peaks}
+            accentColor={camelotColor}
+          />
+        </div>
       </div>
-
-      <div className="cdj-load-row">
-        <button
-          type="button"
-          className="cdj-btn cdj-btn--load"
-          data-deck-load={id}
-          data-pending={loadPending ? "true" : "false"}
-          aria-label={`Carregar deck ${id.toUpperCase()}`}
-          disabled={libraryLoading && browseSource === "remote"}
-          onClick={() => {
-            if (browseSource === "remote") {
-              onChange({ type: "requestDeckLoad", id });
-              return;
-            }
-            if (consumeLoadClickSuppression()) return;
-            onLoadPrepare?.();
-            void openDeckFileDialog(id, onFile);
-          }}
-        >
-          LOAD
-        </button>
-        <input
-          id={deckFileInputId(id)}
-          type="file"
-          className="mixer-deck-file-input"
-          accept="audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg"
-          data-deck-file={id}
-          tabIndex={-1}
-          aria-hidden="true"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = "";
-            if (file) onFile(file);
-          }}
-        />
-      </div>
-
-      <Waveform id={id} phase={deck.phase} spinning={deck.playing} peaks={deck.peaks} accentColor={camelotColor} />
 
       <div className="cdj-transport-primary">
         <p className="cdj-transport-label">Comandos principais</p>
         <div className="cdj-transport" aria-label={`Transporte deck ${id.toUpperCase()}`}>
-          {/*
-            CUE agora é o ponto de cue, e não o monitor de fone, que passou a
-            ter botão próprio no mixer central. Ele não leva `aria-pressed`
-            porque virou ação momentânea, ao passo que antes era um toggle.
-          */}
           <button
             className="cdj-btn cdj-btn--primary cdj-btn--cue"
             type="button"
@@ -466,21 +530,20 @@ export function CdjDeck({
         </button>
       </div>
 
-      <div className="cdj-pads" role="group" aria-label={`Hot cues deck ${id.toUpperCase()}`}>
-        {deck.hotCues.map((cue) => (
-          <button
-            key={cue.slot}
-            type="button"
-            className={`cdj-performance-pad${cue.set ? " is-set" : ""}`}
-            aria-label={`Hot cue ${cue.slot} deck ${id.toUpperCase()}`}
-            aria-pressed={cue.set}
-            data-slot={cue.slot}
-            onClick={() => onChange({ type: "hotCuePad", id, slot: cue.slot })}
-          >
-            {cue.slot}
-          </button>
-        ))}
-      </div>
+      <DeckPlaylist
+        deckId={id}
+        variant="inline"
+        tracks={playlistTracks}
+        loadedTrackId={loadedTrackId}
+        browseCursor={browseCursor}
+        browseSource={browseSource}
+        libraryLoading={libraryLoading}
+        browseKeyFilter={browseKeyFilter}
+        keyFilterFlash={keyFilterFlash}
+        browseActive={browseActive}
+        camelotColor={camelotColor}
+        onSelectTrack={onSelectTrack ?? (() => undefined)}
+      />
     </section>
   );
 }

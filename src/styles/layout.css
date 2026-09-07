@@ -331,6 +331,129 @@
   box-shadow: inset 0 0 18px rgba(0, 232, 255, 0.08);
 }
 
+.status-bar--mixer {
+  height: auto;
+  min-height: var(--status-h);
+  padding-block: 0.28rem;
+  overflow: hidden;
+}
+
+.status-bar--mixer:hover {
+  box-shadow: none;
+}
+
+.mixer-status-chrome {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  width: 100%;
+  min-width: 0;
+  padding-inline: max(var(--layout-gutter), calc((100% - var(--mixer-layout-max)) / 2));
+}
+
+.mixer-status-chrome__source {
+  flex-shrink: 0;
+}
+
+.mixer-status-chrome__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem 0.55rem;
+  min-width: 0;
+}
+
+.mixer-status-chrome__center .mixer-browse-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mixer-status-chrome__center .mixer-browse-title {
+  max-width: none;
+}
+
+.mixer-status-chrome__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.mixer-status-chrome .mixer-browse-source-btn {
+  padding: 0.16rem 0.45rem;
+  font-size: 0.54rem;
+}
+
+.mixer-header-midi {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mixer-header-midi-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #0c121c 82%, black);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mixer-header-midi-trigger[data-state="connected"] {
+  border-color: color-mix(in srgb, var(--cyan) 45%, var(--line));
+  color: var(--cyan-hot);
+}
+
+.mixer-header-midi-trigger[data-live="true"] .mixer-midi-dot {
+  box-shadow: 0 0 10px var(--cyan-hot);
+}
+
+.mixer-header-midi-label {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mixer-header-midi-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 50;
+  width: min(22rem, calc(100vw - 2 * var(--layout-gutter)));
+  padding: 0.55rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--void) 92%, #0c121c);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0.18s ease;
+}
+
+.mixer-header-midi:focus-within .mixer-header-midi-panel,
+.mixer-header-midi:hover .mixer-header-midi-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.mixer-header-midi-panel .mixer-midi-detail {
+  display: block;
+}
+
 .status-track {
   display: flex;
   width: max-content;

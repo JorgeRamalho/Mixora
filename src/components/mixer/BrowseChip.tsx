@@ -26,12 +26,15 @@ export function BrowseChip({
   total,
   source,
   loading = false,
+  activeDeck = "a",
 }: {
   track: BrowseChipTrack | null;
   position: number;
   total: number;
   source: BrowseSource;
   loading?: boolean;
+  /** Deck cuja playlist o encoder BROWSE navega no momento. */
+  activeDeck?: "a" | "b";
 }) {
   const sourceLabel = source === "remote" ? "API" : "USB";
   const bpm = track?.bpm ?? "—";
@@ -39,13 +42,14 @@ export function BrowseChip({
   const title = loading ? "Carregando biblioteca…" : (track?.title ?? "Biblioteca vazia");
   const label = loading
     ? "Browse carregando a biblioteca remota"
-    : `Browse ${position} de ${total}: ${title}, ${bpm} BPM, tom ${key}. LOAD envia para a deck`;
+    : `Browse deck ${activeDeck.toUpperCase()} ${position} de ${total}: ${title}, ${bpm} BPM, tom ${key}. LOAD envia para a deck`;
 
   return (
     <div
       className="mixer-browse-chip"
       role="status"
       data-source={source}
+      data-deck={activeDeck}
       data-loading={loading ? "true" : "false"}
       aria-label={label}
     >

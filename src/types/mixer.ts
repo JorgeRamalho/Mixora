@@ -113,9 +113,10 @@ export interface MixerSnapshot {
  * dispatcher ler o snapshot, porque um botão MIDI manda press e nada mais.
  *
  * As três ações de browser são intenção por um motivo diferente dos toggles.
- * Elas não dependem do snapshot: `browseMove` e `browseHome` mexem no cursor da
- * biblioteca, e `browseLoad` abre o seletor de arquivo no modo local, ou carrega
- * o stream remoto quando a fonte do browse é a API.
+ * Elas não dependem do snapshot: `browseMove` mexe no cursor da playlist ativa,
+ * `browseHome` alterna qual deck recebe o encoder BROWSE, e `browseLoad` abre o
+ * seletor de arquivo no modo local, ou carrega o stream remoto quando a fonte do
+ * browse é a API.
  *
  * Union aberto: um `type` novo exige case em `applyAbsoluteAction` ou
  * `resolveMixerAction`, e uma linha em `MIXER_ACTION_ROUTES` (ver
