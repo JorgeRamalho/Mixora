@@ -18,6 +18,8 @@
   flex-direction: column;
   justify-content: center;
   align-self: center;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .hero-visor {
@@ -1225,12 +1227,8 @@
   .hero-copy {
     max-width: none;
     width: 100%;
-    text-align: center;
-    align-items: center;
-  }
-
-  .hero-copy .lede {
-    margin-inline: auto;
+    align-items: flex-start;
+    text-align: left;
   }
 
   .mascot-wrap {

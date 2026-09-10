@@ -3,8 +3,8 @@
   "tasks": [
     {
       "label": "live:go",
-      "type": "npm",
-      "script": "live:go",
+      "type": "shell",
+      "command": "node scripts/live-go.mjs",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",

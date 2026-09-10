@@ -156,6 +156,7 @@
     </script>
     <script data-mamute-live-boot>
       (function () {
+        return;
         var port = String(location.port || "");
         if (/^517\d$/.test(port) || port === "4173" || port === "8888") return;
         if (document.querySelector('script[src*="src/main.tsx"]')) return;
@@ -380,5 +381,6 @@
         bootLiveServer();
       })();
     </script>
+    <script type="module" src="./dist/assets/main.js"></script>
   </body>
 </html>

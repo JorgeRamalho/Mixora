@@ -1,11 +1,9 @@
 import { DigitalVisor } from "./DigitalVisor";
-import { MixoraMascot } from "./MixoraMascot";
 
 export function Hero() {
   return (
     <section className="hero">
       <div className="hero-copy">
-        <MixoraMascot />
         <p className="kicker">MIXORA OS · a cabine harmônica</p>
         <h1>
           MIXORAPlayerDJ
