@@ -1,12 +1,9 @@
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 42rem) minmax(12.5rem, 16.5rem);
-  gap: 0.55rem 0.7rem;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 28rem);
+  gap: 1.5rem;
   align-items: center;
-  justify-content: center;
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
+  width: 100%;
   padding: 2.2rem 0 1.35rem;
 }
 
@@ -27,7 +24,7 @@
   z-index: 3;
   min-width: 0;
   align-self: center;
-  max-width: 16.5rem;
+  max-width: 28rem;
   width: 100%;
   display: flex;
   align-items: center;
@@ -1236,7 +1233,7 @@
   }
 
   .hero-visor {
-    max-width: min(16.5rem, 100%);
+    max-width: min(28rem, 100%);
     width: 100%;
     margin-inline: auto;
     justify-self: center;
