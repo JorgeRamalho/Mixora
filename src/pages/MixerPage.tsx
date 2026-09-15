@@ -9,8 +9,8 @@ export function MixerPage() {
         <h1>CDJ Virtual + Dual CDJ + mixer integrado</h1>
         <p className="lede">
           EQ HIGH / MED / LOW com boost, sync, master tempo, loop, trim e filter.
-          Browse local no USB de treino ou biblioteca remota — o LOAD baixa o stream
-          e envia o áudio para a CDJ virtual.
+          Browse na biblioteca da API — o LOAD baixa o stream e envia o áudio
+          para a CDJ virtual.
         </p>
       </div>
     </div>

@@ -49,6 +49,19 @@ export const BROWSER_NOTE = {
 /** Encoder BROWSE, que gira no canal do mixer com passo relativo de 7 bits. */
 export const MIXER_CC_BROWSE = 0x40;
 
+/**
+ * Notes do mixer no canal `noteBrowser` (`0x96`).
+ *
+ * O MASTER CUE compartilha o canal com LOAD e BACK, e por isso mora aqui em vez
+ * de `DECK_NOTE`, ao passo que as combinações com SHIFT são atalhos do
+ * rekordbox e ficam documentadas só para o mapper as ignorar.
+ */
+export const MIXER_NOTE = {
+  masterCue: 0x60,
+  masterCueShiftFx: 0x63,
+  masterCueShiftRec: 0x78,
+} as const;
+
 /** Controles de 14 bits que existem nos dois decks, endereçados pelo canal. */
 export const DECK_CC_14BIT = {
   channelFader: { msb: 0x13, lsb: 0x33 },
@@ -109,7 +122,10 @@ export const DECK_NOTE = {
   loopDouble: 0x53,
   jogTouch: 0x36,
   shift: 0x3f,
+  /** CUE de canal (PFL) no deck A e, no Mixxx, também no B pelo mesmo canal MIDI. */
   pfl: 0x54,
+  /** CUE de canal no deck B na lista MIDI oficial da Pioneer (M7-2). */
+  pflDeckB: 0x68,
   sync: 0x58,
   syncLong: 0x5c,
 } as const;

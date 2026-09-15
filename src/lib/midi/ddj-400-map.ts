@@ -27,6 +27,7 @@ import {
   jogDelta,
   MIXER_CC_14BIT,
   MIXER_CC_BROWSE,
+  MIXER_NOTE,
   PAD_COUNT,
   type Cc14Bit,
 } from "./ddj-400-protocol";
@@ -105,8 +106,8 @@ export function mapDdj400(event: ParsedMidiMessage, ctx: Ddj400MapContext): Mixe
  * porque as duas notes de LOAD chegam sob `DDJ_STATUS.noteBrowser`. Por isso
  * `deckFromStatus` devolve `null` aqui e não serve de nada.
  *
- * As duas ações de LOAD são intenção: o mapper diz qual deck recebe o arquivo,
- * e o dispatcher abre o seletor de áudio daquele deck.
+ * As duas ações de LOAD são intenção: o mapper diz o deck destino, e o
+ * dispatcher carrega a faixa do cursor compartilhado naquele deck.
  *
  * @param event Note On no canal do browser.
  */
@@ -119,7 +120,12 @@ function mapBrowserNote(event: ParsedMidiMessage): MixerAction | null {
     case BROWSER_NOTE.load.b:
       return { type: "browseLoad", id: "b" };
     case BROWSER_NOTE.back:
-      return { type: "browseHome" };
+      return null;
+    case MIXER_NOTE.masterCue:
+      return { type: "toggleMasterCue" };
+    case MIXER_NOTE.masterCueShiftFx:
+    case MIXER_NOTE.masterCueShiftRec:
+      return null;
     default:
       return null;
   }
@@ -163,6 +169,9 @@ function mapDeckNote(event: ParsedMidiMessage): MixerAction | null {
     case DECK_NOTE.play:
       return { type: "toggle", id: deck };
     case DECK_NOTE.pfl:
+    case DECK_NOTE.pflDeckB:
+      // A Pioneer documenta 0x68 no deck B; algumas unidades mandam 0x54 no canal.
+      if (event.data1 === DECK_NOTE.pflDeckB && deck !== "b") return null;
       return { type: "toggleCueMonitor", id: deck };
     case DECK_NOTE.sync:
       return { type: "toggleSync", id: deck };
@@ -195,9 +204,8 @@ function mapDeckNote(event: ParsedMidiMessage): MixerAction | null {
  * já descarta os outros modos sozinho, sem estado e sem escutar os botões de
  * modo, pelo mesmo princípio que dispensou o SHIFT na onda 3.
  *
- * O hardware tem oito pads por deck, ao passo que o engine só tem quatro slots
- * de hot cue, e por isso as quatro notes de cima saem como `null` em vez de
- * pedirem um slot que não existe.
+ * O hardware tem oito pads por deck, e a cabine agora tem os oito slots de
+ * hot cue. Beat Jump e Beat Loop continuam em faixas de note distintas.
  *
  * @param event Note On no canal de pads do deck A ou B.
  */

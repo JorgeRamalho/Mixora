@@ -80,13 +80,25 @@ export function Header() {
   const [identity, setIdentity] = useState<string | null>(() => sessionIdentityName());
 
   useEffect(() => {
+    /**
+     * Liga o estado visual do header quando qualquer raiz de rolagem
+     * da shell passa do limiar, e não só o `window`.
+     */
     const syncScrolled = () => {
-      setScrolled(window.scrollY > SCROLL_ACTIVATE_PX);
+      const shell = document.querySelector(".app-shell");
+      const windowY = window.scrollY || document.documentElement.scrollTop || 0;
+      const shellY = shell instanceof HTMLElement ? shell.scrollTop : 0;
+      setScrolled(windowY > SCROLL_ACTIVATE_PX || shellY > SCROLL_ACTIVATE_PX);
     };
 
+    const shell = document.querySelector(".app-shell");
     syncScrolled();
     window.addEventListener("scroll", syncScrolled, { passive: true });
-    return () => window.removeEventListener("scroll", syncScrolled);
+    shell?.addEventListener("scroll", syncScrolled, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", syncScrolled);
+      shell?.removeEventListener("scroll", syncScrolled);
+    };
   }, []);
 
   useEffect(() => {

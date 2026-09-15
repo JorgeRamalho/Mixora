@@ -40,19 +40,6 @@ export const RADIO_EQ_BANDS: RadioEqBand[] = [
 
 export const RADIO_CLIPS: RadioClip[] = [
   {
-    id: "radio-spotify-01",
-    title: "Levels",
-    artist: "Avicii",
-    genre: "Progressive",
-    bpm: 126,
-    key: "4B",
-    duration: "3:19",
-    youtubeId: "_ovdm2yX4MA",
-    sourceUrl: "https://open.spotify.com/search/avicii%20levels",
-    caption: "Descoberta editorial · energia de festival no visor Mamute.",
-    platform: "spotify",
-  },
-  {
     id: "radio-spotify-02",
     title: "One More Time",
     artist: "Daft Punk",
@@ -89,19 +76,6 @@ export const RADIO_CLIPS: RadioClip[] = [
     youtubeId: "JRfuAukYTKg",
     sourceUrl: "https://www.deezer.com/search/david%20guetta%20titanium",
     caption: "Rádio editorial · vocal no breakdown · drop seco.",
-    platform: "deezer",
-  },
-  {
-    id: "radio-deezer-02",
-    title: "Wake Me Up",
-    artist: "Avicii",
-    genre: "Folk House",
-    bpm: 124,
-    key: "3B",
-    duration: "4:07",
-    youtubeId: "IcrbM1l_BoI",
-    sourceUrl: "https://www.deezer.com/search/avicii%20wake%20me%20up",
-    caption: "Mix editorial Deezer · crossover no dial Mamute.",
     platform: "deezer",
   },
   {

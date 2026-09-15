@@ -215,6 +215,100 @@ export function resolveMusicalKey(camelot: string): { root: string; scale: strin
   };
 }
 
+const PITCH_CLASS: Record<string, number> = {
+  C: 0,
+  "C#": 1,
+  D: 2,
+  "D#": 3,
+  E: 4,
+  F: 5,
+  "F#": 6,
+  G: 7,
+  "G#": 8,
+  A: 9,
+  "A#": 10,
+  B: 11,
+};
+
+/**
+ * Classe de altura 0–11 do root Camelot, ou null se o código for inválido.
+ *
+ * @param code Tom Camelot da faixa.
+ */
+export function pitchClassFromCamelot(code: string): number | null {
+  const key = getCamelotKey(code);
+  if (!key) return null;
+  const pc = PITCH_CLASS[key.root];
+  return pc === undefined ? null : pc;
+}
+
+/**
+ * Menor desvio em semitons de `fromKey` até `toKey`, no intervalo −6…+6.
+ *
+ * @param fromKey Tom do deck que vai ser deslocado.
+ * @param toKey Tom alvo, em geral o do deck MASTER.
+ */
+export function semitoneDelta(fromKey: string, toKey: string): number {
+  const from = pitchClassFromCamelot(fromKey);
+  const to = pitchClassFromCamelot(toKey);
+  if (from === null || to === null) return 0;
+  let delta = to - from;
+  if (delta > 6) delta -= 12;
+  if (delta < -6) delta += 12;
+  return delta;
+}
+
+/**
+ * Tom internacional depois de um deslocamento em semitons, mantendo maior/menor.
+ *
+ * @param camelot Tom original da faixa.
+ * @param semitones Deslocamento, positivo sobe o tom.
+ */
+export function keyAfterSemitoneShift(camelot: string, semitones: number): CamelotKey | undefined {
+  const current = getCamelotKey(camelot);
+  const fromPc = pitchClassFromCamelot(camelot);
+  if (!current || fromPc === null) return undefined;
+  const toPc = (((fromPc + semitones) % 12) + 12) % 12;
+  return CAMELOT_KEYS.find((key) => key.letter === current.letter && PITCH_CLASS[key.root] === toPc);
+}
+
+/**
+ * Rótulo Rekordbox do tom com o ajuste, por exemplo `Gm ±2`.
+ *
+ * @param camelot Tom original da faixa.
+ * @param semitones Deslocamento atual do KEY SYNC.
+ */
+export function formatShiftedKeyLabel(camelot: string, semitones: number): string {
+  const shifted = keyAfterSemitoneShift(camelot, semitones);
+  const name = shifted?.nameIntl ?? getCamelotKey(camelot)?.nameIntl ?? camelot;
+  if (semitones === 0) return `${name} ±0`;
+  const signed = semitones > 0 ? `+${semitones}` : `−${Math.abs(semitones)}`;
+  return `${name} ${signed}`;
+}
+
+/**
+ * Código Camelot depois do deslocamento em semitons, por exemplo `8A`.
+ *
+ * @param camelot Tom original da faixa.
+ * @param semitones Deslocamento atual do KEY SYNC.
+ */
+export function formatShiftedCamelotCode(camelot: string, semitones: number): string {
+  const shifted = keyAfterSemitoneShift(camelot, semitones);
+  if (shifted) return shifted.code;
+  return normalizeCamelotCode(camelot) ?? camelot;
+}
+
+/**
+ * Tom internacional (Rekordbox) depois do deslocamento em semitons, por exemplo `Am`.
+ *
+ * @param camelot Tom original da faixa.
+ * @param semitones Deslocamento atual do KEY SYNC.
+ */
+export function formatShiftedMusicalKeyLabel(camelot: string, semitones: number): string {
+  const shifted = keyAfterSemitoneShift(camelot, semitones);
+  return shifted?.nameIntl ?? getCamelotKey(camelot)?.nameIntl ?? "—";
+}
+
 export function harmonicDistance(from: string, to: string): "perfect" | "compatible" | "shift" {
   const relation = camelotRelation(from, to);
   switch (relation) {

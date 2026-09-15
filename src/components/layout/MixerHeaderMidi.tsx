@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { getMixerChromeActions, getMixerChromeSnapshot, subscribeMixerChrome } from "../../lib/mixer-chrome";
+import { CueAudioStatus } from "../mixer/CueAudioStatus";
 import { MidiStatus } from "../mixer/MidiStatus";
 
 const STATUS_SHORT: Record<string, string> = {
@@ -16,7 +17,7 @@ export function MixerHeaderMidi() {
   const chrome = useSyncExternalStore(subscribeMixerChrome, getMixerChromeSnapshot, getMixerChromeSnapshot);
   const actions = getMixerChromeActions();
 
-  if (!chrome.mounted || !actions || !chrome.cabinetHeadHidden) return null;
+  if (!chrome.mounted || !actions) return null;
 
   const { midi } = chrome;
   const shortLabel =
@@ -53,6 +54,14 @@ export function MixerHeaderMidi() {
           live={midi.live}
           latency={midi.latency}
           onConnect={actions.connectMidi}
+        />
+        <CueAudioStatus
+          status={chrome.cueAudio.status}
+          deviceLabel={chrome.cueAudio.deviceLabel}
+          detail={chrome.cueAudio.detail}
+          canChooseOutput={chrome.cueAudio.canChooseOutput}
+          onRetry={actions.retryCueOutput}
+          onChooseOutput={actions.chooseCueOutput}
         />
       </div>
     </div>

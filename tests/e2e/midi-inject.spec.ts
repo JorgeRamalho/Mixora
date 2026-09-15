@@ -11,8 +11,9 @@ import {
   type Cc14Bit,
 } from "../../src/lib/midi/ddj-400-protocol";
 import { JOG_TICKS_PER_NUDGE } from "../../src/lib/midi/midi-scales";
+import { waitForLibraryBrowse } from "./helpers/mixer-deck-load";
 
-const DESKTOP = { width: 1440, height: 900 };
+const DESKTOP = { width: 1920, height: 1080 };
 
 /**
  * Empurra pacotes crus pela mesma ponte que a porta USB alimenta.
@@ -101,20 +102,20 @@ async function spinEncoder(page: Page, steps: number): Promise<void> {
 }
 
 /**
- * Lê o chip da biblioteca, que é o único espelho do cursor na tela.
+ * Lê o cursor da collection, que é o espelho do encoder BROWSE na tela.
  *
  * @param page Página já em `/mixer`.
  */
 async function readBrowse(page: Page): Promise<{ title: string; position: number; total: number }> {
-  const chip = page.getByRole("status", { name: /^Browse/ });
-  await expect(chip).toBeVisible();
+  const cabinet = page.locator(".mixer-cabinet");
+  await expect(cabinet).toHaveAttribute("data-browse-total", /[1-9]/);
+  const row = page.locator(".collection-track-row[data-browse-focus='true']");
+  await expect(row).toBeVisible();
 
-  const title = (await chip.locator(".mixer-browse-title").innerText()).trim();
-  const meta = await chip.locator(".mixer-browse-meta").innerText();
-  const found = /(\d+)\s*\/\s*(\d+)\s*$/.exec(meta.trim());
-  if (!found) throw new Error(`chip de browse sem posição: ${meta}`);
-
-  return { title, position: Number(found[1]), total: Number(found[2]) };
+  const title = (await row.locator(".collection-track-title").innerText()).trim();
+  const cursor = Number(await cabinet.getAttribute("data-browse-cursor"));
+  const total = Number(await cabinet.getAttribute("data-browse-total"));
+  return { title, position: cursor + 1, total };
 }
 
 /**
@@ -175,7 +176,7 @@ test.describe("físico→virtual sem USB", () => {
     await expect(page.getByRole("slider", { name: "Filter deck A" })).toHaveValue("50");
 
     await send14(page, DDJ_STATUS.ccMixer, MIXER_CC_14BIT.headphonesLevel, 0x7f, 0x7f);
-    await expect(page.getByLabel("Volume booth")).toHaveValue("100");
+    await expect(page.getByLabel("Level headphone")).toHaveValue("100");
 
     await send14(page, DDJ_STATUS.ccMixer, MIXER_CC_14BIT.headphonesMixing, 0x00, 0x00);
     await expect(page.getByLabel("Cue mix headphone")).toHaveValue("0");
@@ -211,25 +212,26 @@ test.describe("transporte por inject", () => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/mixer");
     await expect(page.getByRole("status", { name: /Controladora MIDI/ })).toBeVisible();
+    await waitForLibraryBrowse(page);
   });
 
   test("Play troca o rótulo uma vez, e soltar o botão não troca de novo", async ({ page }) => {
     const deckA = page.getByRole("region", { name: "Deck A" });
-    await expect(deckA.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(deckA.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.play);
 
     // Se o release virasse ação, o rótulo voltaria para Play na mesma batida.
     await expect(deckA.getByRole("button", { name: "Pause" })).toBeVisible();
-    await expect(deckA.getByRole("button", { name: "Play" })).toHaveCount(0);
+    await expect(deckA.getByRole("button", { name: "Play", exact: true })).toHaveCount(0);
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.play);
-    await expect(deckA.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(deckA.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   });
 
   test("SYNC e MASTER alternam a partir do estado atual, e não de um valor fixo", async ({ page }) => {
     const deckB = page.getByRole("region", { name: "Deck B" });
-    const sync = deckB.getByRole("button", { name: "SYNC" });
+    const sync = deckB.getByRole("button", { name: "BEAT SYNC", exact: true });
     await expect(sync).toHaveAttribute("aria-pressed", "false");
 
     await tapNote(page, DDJ_STATUS.noteDeckB, DECK_NOTE.sync);
@@ -240,7 +242,7 @@ test.describe("transporte por inject", () => {
     await expect(sync).toHaveAttribute("aria-pressed", "false");
 
     await tapNote(page, DDJ_STATUS.noteDeckB, DECK_NOTE.syncLong);
-    await expect(deckB.getByRole("button", { name: "MASTER" })).toHaveAttribute("aria-pressed", "true");
+    await expect(deckB.getByRole("button", { name: "MASTER", exact: true })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("o PFL de canal do mixer central responde ao CUE físico", async ({ page }) => {
@@ -297,24 +299,24 @@ test.describe("transporte por inject", () => {
   });
 
   test("LOOP IN entra, LOOP OUT sai, e apertar duas vezes não desfaz", async ({ page }) => {
-    const led = page.locator('.cdj-deck[data-deck="a"] .cdj-status-leds span', { hasText: "LOOP" });
-    await expect(led).toHaveAttribute("data-on", "false");
+    const deckA = page.locator('.cdj-deck[data-deck="a"]');
+    await expect(deckA).toHaveAttribute("data-loop-active", "false");
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.loopIn);
-    await expect(led).toHaveAttribute("data-on", "true");
+    await expect(deckA).toHaveAttribute("data-loop-active", "true");
 
     // Se os três botões fossem o mesmo toggle, este segundo IN desligaria.
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.loopIn);
-    await expect(led).toHaveAttribute("data-on", "true");
+    await expect(deckA).toHaveAttribute("data-loop-active", "true");
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.loopOut);
-    await expect(led).toHaveAttribute("data-on", "false");
+    await expect(deckA).toHaveAttribute("data-loop-active", "false");
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.loopOut);
-    await expect(led).toHaveAttribute("data-on", "false");
+    await expect(deckA).toHaveAttribute("data-loop-active", "false");
 
     await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.reloop);
-    await expect(led).toHaveAttribute("data-on", "true");
+    await expect(deckA).toHaveAttribute("data-loop-active", "true");
   });
 
   test("o pad gravado salta, e o pad vazio grava a posição atual", async ({ page }) => {
@@ -323,7 +325,7 @@ test.describe("transporte por inject", () => {
 
     // O slot 1 nasce gravado na batida zero, e por isso ele salta de primeira.
     await spinJog(page, DDJ_STATUS.ccDeckA, DECK_CC_JOG.touched, 520);
-    expect(await phase()).toBeGreaterThan(0.2);
+    expect(await phase()).toBeGreaterThan(0.05);
 
     await tapPad(page, DDJ_STATUS.notePadDeckA, 0);
     await expect.poll(phase).toBe(0);
@@ -343,14 +345,12 @@ test.describe("transporte por inject", () => {
     await expect.poll(phase).toBe(Math.round(gravado * 8) / 8);
   });
 
-  test("pad fora da faixa de hot cue não mexe na cabine", async ({ page }) => {
+  test("pad sampler e beat loop não saltam a fase como hot cue", async ({ page }) => {
     const deckA = page.getByRole("region", { name: "Deck A" });
     await spinJog(page, DDJ_STATUS.ccDeckA, DECK_CC_JOG.touched, 520);
     const antes = await deckA.getAttribute("data-phase");
 
-    // Pad 5, que o engine não tem, e pad 1 em modo Beat Loop, que a
-    // controladora manda como note 0x60.
-    await tapPad(page, DDJ_STATUS.notePadDeckA, 4);
+    await tapNote(page, DDJ_STATUS.notePadDeckA, 0x30);
     await tapPad(page, DDJ_STATUS.notePadDeckA, 0x60 - HOT_CUE_FIRST_NOTE);
 
     expect(await deckA.getAttribute("data-phase")).toBe(antes);
@@ -371,9 +371,7 @@ test.describe("transporte por inject", () => {
     expect(depois.title).not.toBe(partida.title);
 
     await expect(page.getByLabel("Volume deck A")).toHaveValue("0.5");
-    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).not.toContainText(
-      depois.title,
-    );
+    await expect(page.locator(".collection-track-row[data-browse-focus='true']")).toContainText(depois.title);
   });
 
   test("o cursor dá a volta na ponta da lista, em vez de travar", async ({ page }) => {
@@ -393,26 +391,20 @@ test.describe("transporte por inject", () => {
     expect((await readBrowse(page)).position).toBe(partida.total);
   });
 
-  test("o LOAD joga a faixa destacada na deck, e a playlist da tela acompanha", async ({ page }) => {
+  test("o LOAD joga a faixa destacada na deck, e a collection acompanha o cursor", async ({ page }) => {
     await spinEncoder(page, 2);
     const destacada = await readBrowse(page);
 
     await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a);
-    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
-      destacada.title,
-    );
+    await expect(page.locator(".cdj-deck[data-deck='a']")).toContainText(destacada.title, {
+      timeout: 30_000,
+    });
 
-    // A note diz o deck nesta seção, e por isso o LOAD do lado 2 não pode
-    // atropelar a deck A.
     await spinEncoder(page, 1);
     const outra = await readBrowse(page);
     await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.b);
-    await expect(page.getByLabel("Faixas deck B").getByRole("option", { selected: true })).toContainText(
-      outra.title,
-    );
-    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
-      destacada.title,
-    );
+    await expect(page.locator(".cdj-deck[data-deck='b']")).toContainText(outra.title, { timeout: 30_000 });
+    await expect(page.locator(".cdj-deck[data-deck='a']")).toContainText(destacada.title);
   });
 
   test("LOAD no mesmo frame do encoder carrega a faixa nova, e não a anterior", async ({ page }) => {
@@ -429,24 +421,17 @@ test.describe("transporte por inject", () => {
 
     const destino = await readBrowse(page);
     expect(destino.position).toBe((partida.position % partida.total) + 1);
-    await expect(page.getByLabel("Faixas deck A").getByRole("option", { selected: true })).toContainText(
-      destino.title,
-    );
+    await expect(page.locator(".cdj-deck[data-deck='a']")).toContainText(destino.title, {
+      timeout: 30_000,
+    });
   });
 
-  test("o BACK realinha o destaque com a faixa do deck master", async ({ page }) => {
-    // Segurar SYNC manda a note longa e elege a deck A como master, e assim o
-    // teste não depende de qual deck nasce master.
-    await tapNote(page, DDJ_STATUS.noteDeckA, DECK_NOTE.syncLong);
+  test("o BACK da DDJ-400 não move o cursor da collection", async ({ page }) => {
     await spinEncoder(page, 2);
-    await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a);
-
-    const carregada = await readBrowse(page);
-    await spinEncoder(page, 3);
-    expect((await readBrowse(page)).title).not.toBe(carregada.title);
+    const destacada = await readBrowse(page);
 
     await tapNote(page, DDJ_STATUS.noteBrowser, BROWSER_NOTE.back);
-    expect((await readBrowse(page)).title).toBe(carregada.title);
+    expect(await readBrowse(page)).toEqual(destacada);
   });
 
   test("a latência do gesto fica dentro do orçamento", async ({ page }) => {

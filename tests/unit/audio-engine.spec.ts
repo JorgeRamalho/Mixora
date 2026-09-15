@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { TRAINING_TRACKS } from "../../src/data/training-tracks";
 import type { MamuteEngine } from "../../src/lib/audio-engine";
 import { createTestEngine } from "../helpers/audio-engine-harness";
+import { FAST_DECK_TRACK, SLOW_DECK_TRACK } from "../helpers/deck-track-fixtures";
 import type { MockBufferSource } from "../helpers/mock-audio-context";
-
-const TRACK_SLOWER = "radio-deezer-02";
-const TRACK_FASTER = "radio-youtube-01";
 
 let engine: MamuteEngine | undefined;
 
@@ -15,21 +12,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("MamuteEngine — loadTrack (L1–L6)", () => {
+describe("MamuteEngine — setDeckTrack (L1–L5)", () => {
   test("L1 carrega a faixa e atualiza BPM e título", async () => {
     ({ engine } = await createTestEngine());
-    const track = TRAINING_TRACKS.find((item) => item.id === TRACK_FASTER);
-    expect(track).toBeTruthy();
-    engine.loadTrack("b", TRACK_FASTER);
-    expect(engine.snapshot.b.track.id).toBe(TRACK_FASTER);
-    expect(engine.snapshot.b.bpm).toBe(track?.bpm);
-    expect(engine.snapshot.b.track.title).toBe(track?.title);
+    engine.setDeckTrack("b", FAST_DECK_TRACK);
+    expect(engine.snapshot.b.track.id).toBe(FAST_DECK_TRACK.id);
+    expect(engine.snapshot.b.bpm).toBe(FAST_DECK_TRACK.bpm);
+    expect(engine.snapshot.b.track.title).toBe(FAST_DECK_TRACK.title);
   });
 
   test("L2 zera o pitch ao carregar", async () => {
     ({ engine } = await createTestEngine());
     engine.setPitch("a", 4);
-    engine.loadTrack("a", TRACK_SLOWER);
+    engine.setDeckTrack("a", SLOW_DECK_TRACK);
     expect(engine.snapshot.a.pitch).toBe(0);
   });
 
@@ -37,31 +32,24 @@ describe("MamuteEngine — loadTrack (L1–L6)", () => {
     ({ engine } = await createTestEngine());
     await engine.toggle("a");
     expect(engine.snapshot.a.playing).toBe(true);
-    engine.loadTrack("a", TRACK_SLOWER);
+    engine.setDeckTrack("a", SLOW_DECK_TRACK);
     expect(engine.snapshot.a.playing).toBe(true);
     expect(lastSource(engine, "a")?.started).toBe(true);
   });
 
   test("L4 preserva paused: se estava parado, continua parado", async () => {
     ({ engine } = await createTestEngine());
-    engine.loadTrack("a", TRACK_SLOWER);
+    engine.setDeckTrack("a", SLOW_DECK_TRACK);
     expect(engine.snapshot.a.playing).toBe(false);
   });
 
-  test("L5 id desconhecido é no-op", async () => {
+  test("L5 com sync religa o pitch depois do load", async () => {
     ({ engine } = await createTestEngine());
-    const before = engine.snapshot.a.track.id;
-    engine.loadTrack("a", "faixa-que-nao-existe");
-    expect(engine.snapshot.a.track.id).toBe(before);
-  });
-
-  test("L6 com sync religa o pitch depois do load", async () => {
-    ({ engine } = await createTestEngine());
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.setSync("b", true);
     const pitched = engine.snapshot.b.pitch;
     expect(pitched).not.toBe(0);
-    engine.loadTrack("b", TRACK_FASTER);
+    engine.setDeckTrack("b", FAST_DECK_TRACK);
     expect(engine.snapshot.b.sync).toBe(true);
     expect(engine.snapshot.b.pitch).not.toBe(0);
     expect(engine.snapshot.b.pitch).not.toBe(pitched);
@@ -71,7 +59,7 @@ describe("MamuteEngine — loadTrack (L1–L6)", () => {
 describe("MamuteEngine — applySync (S1–S5)", () => {
   test("S1 pitch = ((bpm master / bpm deck) - 1) * 100", async () => {
     ({ engine } = await createTestEngine());
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.__test__.applySync("b");
     const master = engine.snapshot.a.bpm;
     const deck = engine.snapshot.b.bpm;
@@ -88,7 +76,7 @@ describe("MamuteEngine — applySync (S1–S5)", () => {
   test("S3 playbackRate segue o pitch calculado", async () => {
     ({ engine } = await createTestEngine());
     await engine.toggle("b");
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.setSync("b", true);
     const source = lastSource(engine, "b");
     expect(source?.playbackRate.value).toBeCloseTo(1 + engine.snapshot.b.pitch / 100, 5);
@@ -96,19 +84,20 @@ describe("MamuteEngine — applySync (S1–S5)", () => {
 
   test("S4 trocar o master reaplica o sync nos dois decks", async () => {
     ({ engine } = await createTestEngine());
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.setSync("a", true);
     engine.setSync("b", true);
     engine.setMasterDeck("b");
     expect(engine.snapshot.masterDeck).toBe("b");
-    expect(engine.snapshot.b.masterTempo).toBe(true);
+    expect(engine.snapshot.b.keyLock).toBe(false);
+    expect(engine.snapshot.a.keyLock).toBe(false);
     expect(engine.snapshot.b.pitch).toBe(0);
     expect(engine.snapshot.a.pitch).not.toBe(0);
   });
 
   test("S5 sem grafo ainda, o snapshot recebe o pitch mesmo assim", async () => {
     ({ engine } = await createTestEngine({ ensure: false }));
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.__test__.applySync("b");
     expect(engine.snapshot.b.pitch).not.toBe(0);
     expect(engine.__test__.decks()).toBeNull();
@@ -163,8 +152,81 @@ describe("MamuteEngine — applyGains (G1–G6)", () => {
     expect(engine.snapshot.cueMix).toBe(0.22);
     expect(engine.snapshot.masterCue).toBe(true);
     expect(engine.__test__.headphonesGain()?.gain.value).toBe(0.11);
-    expect(engine.__test__.cueMasterGain()?.gain.value).toBe(1);
-    expect(engine.__test__.cuePflGain()?.gain.value).toBe(0);
+    expect(engine.__test__.cuePflGain()?.gain.value).toBeCloseTo(0.78, 5);
+    expect(engine.__test__.cueMasterGain()?.gain.value).toBeCloseTo(0.22, 5);
+  });
+
+  test("G8 setCueSinkId null volta o cue ao destino padrão", async () => {
+    const { engine: testEngine, ctx } = await createTestEngine();
+    engine = testEngine;
+    expect(await engine.setCueSinkId("phones-id")).toBe(true);
+    expect(await engine.setCueSinkId(null)).toBe(true);
+    expect(engine.cueSinkDeviceId()).toBeNull();
+    expect(ctx.sinkId).toBe("");
+    expect(engine.__test__.outputTopology()).toBe("default");
+    expect(engine.__test__.master()?.connections).toContain(ctx.destination);
+    expect(engine.__test__.headphonesGain()?.connections).toContain(ctx.destination);
+  });
+
+  test("G10 setCueSinkId em PHONES mantém o master no destination e parte o cue", async () => {
+    const { engine: testEngine, ctx } = await createTestEngine();
+    engine = testEngine;
+    const master = engine.__test__.master();
+    const phones = engine.__test__.headphonesGain();
+    expect(master?.connections).toContain(ctx.destination);
+    await engine.setCueSinkId("phones-id");
+    expect(ctx.sinkId).toBe("");
+    expect(engine.__test__.outputTopology()).toBe("phones");
+    expect(master?.connections).toContain(ctx.destination);
+    expect(phones?.connections).not.toContain(ctx.destination);
+    expect(phones?.connections).toContain(engine.__test__.cueStreamDest());
+    expect(engine.__test__.cueOutputCtx() && "sinkId" in engine.__test__.cueOutputCtx()!).toBe(true);
+    expect((engine.__test__.cueOutputCtx() as AudioContext & { sinkId: string }).sinkId).toBe(
+      "phones-id",
+    );
+  });
+
+  test("G11 isolate corta o cue do destination e preserva o master", async () => {
+    const { engine: testEngine, ctx } = await createTestEngine();
+    engine = testEngine;
+    expect(await engine.setCueSinkId(null, { isolate: true })).toBe(true);
+    expect(engine.__test__.outputTopology()).toBe("isolated");
+    expect(engine.__test__.master()?.connections).toContain(ctx.destination);
+    expect(engine.__test__.headphonesGain()?.connections).not.toContain(ctx.destination);
+  });
+
+  test("G7 MASTER CUE habilita o master e o knob MIXING continua controlando o blend", async () => {
+    ({ engine } = await createTestEngine());
+
+    const expectCueBlend = (masterCue: boolean, cueMix: number) => {
+      engine.setMasterCue(masterCue);
+      engine.setCueMix(cueMix);
+      expect(engine.__test__.cuePflGain()?.gain.value).toBeCloseTo(1 - cueMix, 5);
+      expect(engine.__test__.cueMasterGain()?.gain.value).toBeCloseTo(masterCue ? cueMix : 0, 5);
+    };
+
+    // MASTER CUE desligado: PFL segue inteiro e o master digital fica bloqueado.
+    expectCueBlend(false, 0);
+    engine.setMasterCue(false);
+    engine.setCueMix(1);
+    expect(engine.__test__.cuePflGain()?.gain.value).toBeCloseTo(1, 5);
+    expect(engine.__test__.cueMasterGain()?.gain.value).toBe(0);
+
+    // MASTER CUE ligado: MIXING no mínimo deixa só PFL, no máximo só master.
+    expectCueBlend(true, 0);
+    expectCueBlend(true, 0.5);
+    expectCueBlend(true, 1);
+  });
+
+  test("G9 PFL do deck B segue com crossfader à esquerda e MIXING no CUE", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setCrossfader(0);
+    engine.setCueMix(0);
+    engine.setMasterCue(true);
+    engine.setCueMonitor("b", true);
+    expect(engine.__test__.decks()?.b.cueSend.gain.value).toBeCloseTo(engine.snapshot.b.trim, 5);
+    expect(engine.__test__.cuePflGain()?.gain.value).toBeCloseTo(1, 5);
+    expect(engine.__test__.cueMasterGain()?.gain.value).toBeCloseTo(0, 5);
   });
 });
 
@@ -252,6 +314,17 @@ describe("MamuteEngine — cue momentâneo (C6–C8)", () => {
     expect(engine.snapshot.a.phase).toBeCloseTo(0.5, 5);
     engine.releaseCue("a");
     expect(engine.snapshot.a.playing).toBe(true);
+  });
+
+  test("C9 pausado, pressCue silencia o canal e abre só o bus de cue", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setCueBeat("a", 2);
+    engine.pressCue("a");
+    expect(engine.__test__.decks()?.a.gain.gain.value).toBe(0);
+    expect(engine.__test__.decks()?.a.cueSend.gain.value).toBeCloseTo(engine.snapshot.a.trim, 5);
+    engine.releaseCue("a");
+    expect(engine.__test__.decks()?.a.cueSend.gain.value).toBe(0);
+    expect(engine.__test__.decks()?.a.gain.gain.value).toBeGreaterThan(0);
   });
 });
 
@@ -364,7 +437,7 @@ describe("MamuteEngine — setPitch (P1–P4)", () => {
 
   test("P3 com sync o setPitch é sobrescrito pela fórmula", async () => {
     ({ engine } = await createTestEngine());
-    engine.loadTrack("b", TRACK_SLOWER);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
     engine.setSync("b", true);
     const synced = engine.snapshot.b.pitch;
     engine.setPitch("b", 8);
@@ -392,9 +465,9 @@ describe("MamuteEngine — rebuildBuffer (R1–R4)", () => {
     expect(engine.__test__.decks()?.a.buffer?.numberOfChannels).toBe(2);
   });
 
-  test("R3 loadTrack reconstrói o buffer no BPM novo", async () => {
+  test("R3 setDeckTrack reconstrói o buffer no BPM novo", async () => {
     ({ engine } = await createTestEngine());
-    engine.loadTrack("a", TRACK_FASTER);
+    engine.setDeckTrack("a", FAST_DECK_TRACK);
     const expected = (60 / engine.snapshot.a.bpm) * 8;
     expect(engine.__test__.decks()?.a.buffer?.duration).toBeCloseTo(expected, 2);
   });
@@ -448,6 +521,60 @@ describe("MamuteEngine — phase loop (PH1–PH5)", () => {
   });
 
   test.todo("PH5 loop ativo recorta o playback ao IN/OUT em arquivo e sintético");
+
+  test("PH6 livePhase lê o relógio do Web Audio antes do próximo tick de 50ms", async () => {
+    vi.useFakeTimers();
+    const created = await createTestEngine();
+    engine = created.engine;
+    const ctx = created.ctx;
+    await engine.toggle("a");
+    const duration = engine.__test__.decks()?.a.buffer?.duration ?? 1;
+    ctx.advance(0.25);
+    expect(engine.livePhase("a")).toBeCloseTo((0.25 / duration) % 1, 5);
+    expect(engine.snapshot.a.phase).toBe(0);
+    vi.advanceTimersByTime(50);
+    expect(engine.snapshot.a.phase).toBeCloseTo(engine.livePhase("a"), 5);
+  });
+});
+
+describe("MamuteEngine — subscribePlaying", () => {
+  test("notifica play e pause no toggle", async () => {
+    ({ engine } = await createTestEngine());
+    const events: Array<{ id: string; playing: boolean }> = [];
+    engine.subscribePlaying((id, playing) => {
+      events.push({ id, playing });
+    });
+
+    await engine.toggle("a");
+    expect(events).toContainEqual({ id: "a", playing: true });
+
+    await engine.toggle("a");
+    expect(events).toContainEqual({ id: "a", playing: false });
+  });
+
+  test("notifica fim natural de arquivo via onended", async () => {
+    const created = await createTestEngine();
+    engine = created.engine;
+    const ctx = created.ctx;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    engine.loadDeckBuffer("a", buffer as unknown as AudioBuffer, {
+      title: "full-track",
+      bpm: 120,
+      durationSec: buffer.duration,
+    });
+
+    const events: Array<{ id: string; playing: boolean }> = [];
+    engine.subscribePlaying((id, playing) => {
+      events.push({ id, playing });
+    });
+
+    await engine.toggle("a");
+    const source = lastSource(engine, "a");
+    source?.onended?.();
+
+    expect(events).toContainEqual({ id: "a", playing: false });
+    expect(engine.snapshot.a.playing).toBe(false);
+  });
 });
 
 describe("MamuteEngine — demais métodos públicos", () => {
@@ -483,6 +610,22 @@ describe("MamuteEngine — demais métodos públicos", () => {
     expect(engine.snapshot.a.jogMode).toBe("vinyl");
     expect(engine.snapshot.a.quantize).toBe(false);
     expect(engine.__test__.decks()?.a.cueSend.gain.value).toBeGreaterThan(0);
+  });
+
+  test("PFL é pré-fader e continua audível com o channel fader em zero", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setGain("a", 0);
+    engine.setCueMonitor("a", true);
+    expect(engine.__test__.decks()?.a.cueSend.gain.value).toBeGreaterThan(0);
+    expect(engine.__test__.decks()?.a.gain.gain.value).toBe(0);
+  });
+
+  test("PFL ignora o crossfader no deck oposto", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setCrossfader(0);
+    engine.setCueMonitor("b", true);
+    expect(engine.__test__.decks()?.b.gain.gain.value).toBe(0);
+    expect(engine.__test__.decks()?.b.cueSend.gain.value).toBeCloseTo(engine.snapshot.b.trim, 5);
   });
 
   test("hot cue grava e dispara, e slot vazio é no-op", async () => {
@@ -522,7 +665,23 @@ describe("MamuteEngine — demais métodos públicos", () => {
     expect(engine.snapshot.a.playing).toBe(true);
     expect(engine.snapshot.a.sourceKind).toBe("file");
     expect(engine.snapshot.a.peaks?.length).toBe(512);
+    expect(engine.snapshot.a.beatGrid).toBeNull();
     expect(lastSource(engine, "a")?.loop).toBe(false);
+  });
+
+  test("loadDeckBuffer guarda o beatgrid da análise remota", async () => {
+    const created = await createTestEngine();
+    engine = created.engine;
+    const ctx = created.ctx;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    engine.loadDeckBuffer("a", buffer as unknown as AudioBuffer, {
+      title: "grid-track",
+      bpm: 124,
+      durationSec: buffer.duration,
+      beatGrid: { bpm: 123.046875, offsetSec: 0.209, beatsPerBar: 4, phraseBars: 8 },
+    });
+    expect(engine.snapshot.a.beatGrid?.bpm).toBeCloseTo(123.046875);
+    expect(engine.snapshot.a.beatGrid?.offsetSec).toBeCloseTo(0.209);
   });
 
   test("U-07 arquivo real toca uma vez e para no fim", async () => {
@@ -584,6 +743,71 @@ describe("MamuteEngine — demais métodos públicos", () => {
     engine.callCue("a");
     expect(engine.snapshot.a.phase).toBeCloseTo(0, 5);
     expect(lastSource(engine, "a")?.startOffset).toBeCloseTo(0, 5);
+  });
+});
+
+describe("MamuteEngine — Rekordbox slip, key e loop", () => {
+  test("setMasterDeck não liga o keyLock", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setKeyLock("a", true);
+    engine.setMasterDeck("b");
+    expect(engine.snapshot.masterDeck).toBe("b");
+    expect(engine.snapshot.a.keyLock).toBe(true);
+    expect(engine.snapshot.b.keyLock).toBe(false);
+  });
+
+  test("loopHalve com loop off só arma o tamanho em beats", async () => {
+    ({ engine } = await createTestEngine());
+    expect(engine.snapshot.a.loop.beats).toBe(4);
+    engine.loopHalve("a");
+    expect(engine.snapshot.a.loop.active).toBe(false);
+    expect(engine.snapshot.a.loop.beats).toBe(2);
+    engine.setBeatLoop("a", engine.snapshot.a.loop.beats);
+    expect(engine.snapshot.a.loop.active).toBe(true);
+    expect(engine.snapshot.a.loop.beats).toBe(2);
+  });
+
+  test("KEY SYNC com beat sync on não empilha o tom no playbackRate", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setDeckTrack("a", FAST_DECK_TRACK);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
+    await engine.toggle("b");
+    engine.setSync("b", true);
+    const syncRate = 1 + engine.snapshot.b.pitch / 100;
+    engine.setKeySync("b", true);
+    expect(engine.snapshot.b.keySync).toBe(true);
+    expect(engine.snapshot.b.keyShift).not.toBe(0);
+    expect(engine.__test__.playbackRateFor("b")).toBeCloseTo(syncRate, 5);
+    expect(lastSource(engine, "b")?.playbackRate.value).toBeCloseTo(syncRate, 5);
+  });
+
+  test("KEY SYNC com beat sync off aplica 2^(shift/12) no rate", async () => {
+    ({ engine } = await createTestEngine());
+    engine.setDeckTrack("a", FAST_DECK_TRACK);
+    engine.setDeckTrack("b", SLOW_DECK_TRACK);
+    await engine.toggle("b");
+    engine.setKeySync("b", true);
+    const shift = engine.snapshot.b.keyShift;
+    expect(shift).not.toBe(0);
+    const expected = 2 ** (shift / 12);
+    expect(engine.__test__.playbackRateFor("b")).toBeCloseTo(expected, 5);
+  });
+
+  test("SLIP restaura a posição depois do scratch", async () => {
+    const created = await createTestEngine();
+    engine = created.engine;
+    const ctx = created.ctx;
+    await engine.toggle("a");
+    engine.setSlip("a", true);
+    const origin = engine.snapshot.a.positionSec;
+    engine.scratchBegin("a");
+    engine.scratchTick("a", 0.35);
+    expect(engine.snapshot.a.phase).toBeGreaterThan(0.2);
+    ctx.advance(1);
+    engine.scratchEnd("a");
+    const duration = engine.__test__.decks()?.a.buffer?.duration ?? 1;
+    expect(engine.snapshot.a.positionSec).toBeCloseTo(origin + 1, 1);
+    expect(engine.snapshot.a.phase).toBeCloseTo(((origin + 1) / duration) % 1, 1);
   });
 });
 

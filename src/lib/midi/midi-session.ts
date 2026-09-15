@@ -36,6 +36,7 @@ let snapshot: MidiSessionSnapshot = {
 
 let access: MIDIAccess | null = null;
 let output: MIDIOutput | null = null;
+let activeOutputId: string | null = null;
 let stops: Array<() => void> = [];
 let startPromise: Promise<void> | null = null;
 let attachChain: Promise<void> = Promise.resolve();
@@ -203,7 +204,7 @@ export function sendMidiOutput(bytes: number[]): void {
   try {
     output.send(bytes);
   } catch {
-    output = null;
+    // A porta pode estar fechando durante reattach do input; o próximo sync tenta de novo.
   }
 }
 export async function startMidiSession(): Promise<void> {
@@ -273,12 +274,11 @@ function attachPorts(midi: MIDIAccess): Promise<void> {
 }
 
 async function runAttach(midi: MIDIAccess): Promise<void> {
-  await releasePorts();
-  output = null;
   const names = listMidiInputNames(midi);
   const chosen = selectDdj400Inputs(midi);
   const chosenOutput = selectDdj400Output(midi);
   if (chosen.length === 0) {
+    await releasePorts();
     publish({
       status: "disconnected",
       deviceName: null,
@@ -291,10 +291,15 @@ async function runAttach(midi: MIDIAccess): Promise<void> {
     return;
   }
 
+  // Reabre só as entradas. Fechar a saída a cada `onstatechange` do input
+  // deixava o LED intermitente, porque o Note On saía com a porta fechada.
+  await releaseInputs();
+
   for (const input of chosen) {
     try {
       stops.push(await listenMidiInput(input, emitMidiBytes));
     } catch {
+      await releasePorts();
       publish({
         status: "disconnected",
         deviceName: null,
@@ -305,14 +310,7 @@ async function runAttach(midi: MIDIAccess): Promise<void> {
     }
   }
 
-  if (chosenOutput) {
-    try {
-      await chosenOutput.open();
-      output = chosenOutput;
-    } catch {
-      output = null;
-    }
-  }
+  await ensureOutputPort(chosenOutput);
 
   publish({
     status: "connected",
@@ -324,17 +322,54 @@ async function runAttach(midi: MIDIAccess): Promise<void> {
   });
 }
 
-async function releasePorts(): Promise<void> {
+/**
+ * Mantém a porta de saída aberta quando o `onstatechange` só reanexa entradas.
+ *
+ * @param chosenOutput Porta MIDI out da DDJ-400, se o browser expôs alguma.
+ */
+async function ensureOutputPort(chosenOutput: MIDIOutput | null): Promise<void> {
+  if (!chosenOutput) {
+    await releaseOutput();
+    return;
+  }
+
+  const reuse =
+    output !== null &&
+    activeOutputId === chosenOutput.id &&
+    chosenOutput.connection === "open" &&
+    chosenOutput.state === "connected";
+  if (reuse) return;
+
+  await releaseOutput();
+  try {
+    await chosenOutput.open();
+    output = chosenOutput;
+    activeOutputId = chosenOutput.id;
+  } catch {
+    output = null;
+    activeOutputId = null;
+  }
+}
+
+async function releaseInputs(): Promise<void> {
   for (const stop of stops) stop();
   stops = [];
-  if (output) {
-    try {
-      output.close();
-    } catch {
-      // A porta pode já ter sido fechada pelo SO.
-    }
-    output = null;
+}
+
+async function releaseOutput(): Promise<void> {
+  if (!output) return;
+  try {
+    output.close();
+  } catch {
+    // A porta pode já ter sido fechada pelo SO.
   }
+  output = null;
+  activeOutputId = null;
+}
+
+async function releasePorts(): Promise<void> {
+  await releaseInputs();
+  await releaseOutput();
 }
 
 function publish(next: Partial<MidiSessionSnapshot>): void {

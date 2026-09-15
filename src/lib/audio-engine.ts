@@ -1,16 +1,30 @@
-import { DEFAULT_DECK_TRACKS, getTrainingTrack } from "../data/training-tracks";
-import { HOT_CUE_SLOTS } from "../types/mixer";
+import { EMPTY_DECK_TRACK } from "./deck-track";
+import {
+  createDeckLoop,
+  HOT_CUE_SLOTS,
+  KEY_SHIFT_MAX,
+  KEY_SHIFT_MIN,
+  LOOP_BEAT_STEPS,
+} from "../types/mixer";
 import type {
   DeckFileMeta,
   DeckId,
   DeckState,
   HotCue,
   JogMode,
+  LoopMode,
   MixerSnapshot,
-  TrainingTrack,
+  DeckTrack,
 } from "../types/mixer";
 import { decodeDeckFile } from "./deck-audio-decode";
+import { semitoneDelta } from "./musical-key";
+import { computeWaveformBandsFromBuffer, resolveDetailBinCount } from "./waveform-bands-compute";
 import { computePeaks } from "./waveform-peaks";
+
+interface SlipClock {
+  originSec: number;
+  originTime: number;
+}
 
 export type { DeckState, MixerSnapshot } from "../types/mixer";
 
@@ -32,28 +46,8 @@ function emptyHotCues(): HotCue[] {
   }));
 }
 
-/**
- * Resolve a faixa com que um deck nasce.
- *
- * Não há fallback silencioso de propósito. O `??` que morava aqui foi o que
- * escondeu por várias ondas uma deck B apontando para um id fora de
- * `TRAINING_TRACKS`, e o sintoma era as duas decks nascerem na mesma faixa em
- * vez de um erro. Hoje o tipo `TrainingTrackId` já barra isso na compilação, e
- * este guarda existe para o caso de a biblioteca mudar em runtime.
- *
- * @param id Deck a inicializar.
- */
-function defaultTrack(id: DeckId): TrainingTrack {
-  const trackId = DEFAULT_DECK_TRACKS[id];
-  const track = getTrainingTrack(trackId);
-  if (!track) {
-    throw new Error(`Faixa padrão ${trackId} fora de TRAINING_TRACKS`);
-  }
-  return track;
-}
-
-function createDeck(id: DeckId): DeckState {
-  const track = defaultTrack(id);
+function createDeck(_id: DeckId): DeckState {
+  const track = { ...EMPTY_DECK_TRACK };
   return {
     playing: false,
     bpm: track.bpm,
@@ -63,11 +57,14 @@ function createDeck(id: DeckId): DeckState {
     eq: { high: 0, mid: 0, low: 0 },
     filter: 0,
     sync: false,
-    masterTempo: id === "a",
+    keyLock: false,
+    keySync: false,
+    keyShift: 0,
+    slip: false,
     cueMonitor: false,
     jogMode: "cdj",
     quantize: true,
-    loop: { active: false, inBeat: null, outBeat: null },
+    loop: createDeckLoop(),
     hotCues: emptyHotCues(),
     cueBeat: 0,
     track,
@@ -76,6 +73,8 @@ function createDeck(id: DeckId): DeckState {
     durationSec: 0,
     positionSec: 0,
     peaks: null,
+    waveformV10: null,
+    beatGrid: null,
   };
 }
 
@@ -83,6 +82,26 @@ function formatTrackDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Anda um degrau na escala de auto loop, sem sair de 1–32 beats.
+ *
+ * @param beats Tamanho atual.
+ * @param direction -1 encolhe, +1 dobra o degrau.
+ */
+function stepLoopBeats(beats: number, direction: -1 | 1): number {
+  const steps = LOOP_BEAT_STEPS;
+  let index = steps.findIndex((step) => step >= beats);
+  if (index < 0) index = steps.length - 1;
+  if (steps[index] !== beats) {
+    const prev = steps[index - 1];
+    if (prev !== undefined && Math.abs(beats - prev) < Math.abs(beats - steps[index]!)) {
+      index -= 1;
+    }
+  }
+  const next = index + direction;
+  return steps[Math.min(steps.length - 1, Math.max(0, next))] ?? beats;
 }
 
 function makeNoiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
@@ -197,7 +216,8 @@ class DeckNodes {
     this.high.connect(this.gain);
     this.gain.connect(this.analyser);
     this.analyser.connect(masterDest);
-    this.gain.connect(this.cueSend);
+    // PFL é pré-fader e pré-EQ: o TRIM define o ganho do cue, não o channel fader.
+    this.trim.connect(this.cueSend);
     this.cueSend.connect(cueSum);
   }
 }
@@ -215,8 +235,15 @@ export class MamuteEngine {
   private headphonesGain: GainNode | null = null;
   private cueStreamDest: MediaStreamAudioDestinationNode | null = null;
   private cueAudioEl: HTMLAudioElement | null = null;
+  private cueOutputCtx: AudioContext | null = null;
+  private cueOutputSource: MediaStreamAudioSourceNode | null = null;
+  private activeCueSinkId: string | null = null;
+  private outputTopology: "default" | "isolated" | "phones" | "phones-legacy" = "default";
   private decks: { a: DeckNodes; b: DeckNodes } | null = null;
   private phaseTimer: number | null = null;
+  private playingListeners = new Set<(id: DeckId, playing: boolean) => void>();
+  private slipClock: Record<DeckId, SlipClock | null> = { a: null, b: null };
+  private slipHotCueSlot: Record<DeckId, number | null> = { a: null, b: null };
   snapshot: MixerSnapshot = {
     a: createDeck("a"),
     b: createDeck("b"),
@@ -255,12 +282,16 @@ export class MamuteEngine {
       cuePflGain: () => this.cuePflGain,
       cueMasterGain: () => this.cueMasterGain,
       headphonesGain: () => this.headphonesGain,
+      cueStreamDest: () => this.cueStreamDest,
+      cueOutputCtx: () => this.cueOutputCtx,
+      outputTopology: () => this.outputTopology,
       phaseTimer: () => this.phaseTimer,
       stopPhaseLoop: () => {
         if (this.phaseTimer === null) return;
         window.clearInterval(this.phaseTimer);
         this.phaseTimer = null;
       },
+      playbackRateFor: (id: DeckId) => this.playbackRateFor(id),
     };
   }
 
@@ -269,6 +300,34 @@ export class MamuteEngine {
    */
   audioContext(): AudioContext | null {
     return this.ctx;
+  }
+
+  /**
+   * Inscreve callback para bordas de `playing` (play, pause, fim de faixa).
+   *
+   * @param listener Recebe o deck e o novo estado de transporte.
+   * @returns Função para cancelar a inscrição.
+   */
+  subscribePlaying(listener: (id: DeckId, playing: boolean) => void): () => void {
+    this.playingListeners.add(listener);
+    return () => {
+      this.playingListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Atualiza `playing` no snapshot e notifica inscritos quando o valor mudar.
+   *
+   * @param id Deck afetado.
+   * @param playing Novo estado de transporte.
+   */
+  private setPlayingState(id: DeckId, playing: boolean): void {
+    const deck = this.snapshot[id];
+    if (deck.playing === playing) return;
+    deck.playing = playing;
+    for (const listener of this.playingListeners) {
+      listener(id, playing);
+    }
   }
 
   async ensure(): Promise<void> {
@@ -306,34 +365,264 @@ export class MamuteEngine {
   }
 
   /**
-   * Aponta o bus de cue para um dispositivo de saída via `setSinkId`.
-   *
-   * @param deviceId Id do `enumerateDevices` ou `null` para voltar ao destino padrão.
+   * Id do dispositivo de saída do cue, ou `null` quando o bus usa o destino padrão.
    */
-  async setCueSinkId(deviceId: string | null): Promise<void> {
+  cueSinkDeviceId(): string | null {
+    return this.activeCueSinkId;
+  }
+
+  /**
+   * Aponta o bus de fone para um dispositivo USB da DDJ-400.
+   *
+   * O `AudioContext` principal fica no destino padrão, porque esse é o master.
+   * O cue sai num contexto (ou `HTMLAudioElement`) separado, senão o PFL vazaria
+   * no RCA quando o Windows usa a DDJ-400 como playback padrão.
+   *
+   * @param deviceId Id do `enumerateDevices` ou `null` para soltar o roteamento.
+   * @param options `isolate` corta o cue do destination enquanto o PHONES não existe.
+   * @returns True quando o roteamento foi aplicado.
+   */
+  async setCueSinkId(deviceId: string | null, options: { isolate?: boolean } = {}): Promise<boolean> {
     await this.ensure();
-    if (!this.ctx || !this.headphonesGain) return;
-    if (!deviceId) {
-      this.headphonesGain.disconnect();
-      this.headphonesGain.connect(this.ctx.destination);
-      if (this.cueAudioEl) {
-        this.cueAudioEl.pause();
-        this.cueAudioEl.srcObject = null;
+    if (!this.ctx || !this.headphonesGain || !this.master) return false;
+
+    const isolated = Boolean(options.isolate) && !deviceId;
+    const idleTopology = isolated ? "isolated" : "default";
+    const alreadySplit =
+      Boolean(deviceId) &&
+      deviceId === this.activeCueSinkId &&
+      (this.outputTopology === "phones" || this.outputTopology === "phones-legacy");
+    const alreadyIdle = !deviceId && this.activeCueSinkId === null && this.outputTopology === idleTopology;
+
+    if (alreadySplit || alreadyIdle) {
+      if (this.ctx.state === "suspended") {
+        await this.ctx.resume();
       }
+      return true;
+    }
+
+    if (!deviceId) {
+      await this.resetMainContextSink();
+      this.teardownCueSplit();
+      this.applyOutputTopology(idleTopology);
+      this.activeCueSinkId = null;
+      return true;
+    }
+
+    try {
+      if (this.ctx.state === "suspended") {
+        await this.ctx.resume();
+      }
+      await this.resetMainContextSink();
+
+      if (await this.routeCueViaCueContext(deviceId)) {
+        this.teardownLegacyCueStream();
+        this.applyOutputTopology("phones");
+        this.activeCueSinkId = deviceId;
+        return true;
+      }
+
+      if (this.supportsLegacyCueStream()) {
+        const routed = await this.routeCueViaLegacyStream(deviceId);
+        if (routed) {
+          this.applyOutputTopology("phones-legacy");
+          this.activeCueSinkId = deviceId;
+          return true;
+        }
+      }
+
+      this.teardownCueSplit();
+      this.applyOutputTopology("isolated");
+      this.activeCueSinkId = null;
+      return false;
+    } catch {
+      this.activeCueSinkId = null;
+      this.teardownCueSplit();
+      await this.resetMainContextSink();
+      this.applyOutputTopology("isolated");
+      return false;
+    }
+  }
+
+  /**
+   * Reorganiza quem alimenta `ctx.destination` e o stream de fone.
+   *
+   * @param mode `default` mistura master e cue no PC; `isolated` corta o cue do
+   * destination; `phones` e `phones-legacy` mandam o cue para o sink separado.
+   */
+  private applyOutputTopology(mode: "default" | "isolated" | "phones" | "phones-legacy"): void {
+    if (!this.ctx || !this.master || !this.headphonesGain) return;
+    this.outputTopology = mode;
+
+    try {
+      this.master.disconnect(this.ctx.destination);
+    } catch {
+      // O master pode ainda não estar ligado ao destination.
+    }
+    this.master.connect(this.ctx.destination);
+
+    try {
+      this.headphonesGain.disconnect(this.ctx.destination);
+    } catch {
+      // O bus de fone pode ainda não estar ligado ao destination.
+    }
+    if (this.cueStreamDest) {
+      try {
+        this.headphonesGain.disconnect(this.cueStreamDest);
+      } catch {
+        // O stream de cue pode ainda não existir.
+      }
+    }
+
+    if (mode === "default") {
+      this.headphonesGain.connect(this.ctx.destination);
       return;
     }
+
+    if (mode === "isolated") {
+      return;
+    }
+
+    const streamDest = this.ensureCueStreamDest();
+    if (streamDest) {
+      this.headphonesGain.connect(streamDest);
+    }
+  }
+
+  /**
+   * Devolve o `AudioContext` principal ao sink padrão do sistema, se ele tiver
+   * sido sequestrado por um roteamento antigo.
+   */
+  private async resetMainContextSink(): Promise<void> {
+    if (!this.ctx) return;
+    const ctx = this.ctx as AudioContext & {
+      setSinkId?: (id: string | { type: "none" }) => Promise<void>;
+      sinkId?: string;
+    };
+    if (typeof ctx.setSinkId !== "function") return;
+    if (!ctx.sinkId) return;
+    try {
+      await ctx.setSinkId("");
+    } catch {
+      // O destino padrão pode já estar ativo.
+    }
+  }
+
+  /**
+   * Cria o destino de `MediaStream` do cue, reutilizado pelo contexto de fone.
+   */
+  private ensureCueStreamDest(): MediaStreamAudioDestinationNode | null {
+    if (!this.ctx) return null;
     if (!this.cueStreamDest) {
       this.cueStreamDest = this.ctx.createMediaStreamDestination();
-      this.cueAudioEl = new Audio();
-      this.cueAudioEl.srcObject = this.cueStreamDest.stream;
+      this.cueStreamDest.channelCount = 2;
     }
-    const cueDest = this.cueStreamDest;
+    return this.cueStreamDest;
+  }
+
+  /**
+   * Roteia o cue por um `AudioContext` próprio, para o master não mudar de sink.
+   *
+   * @param deviceId Saída PHONES escolhida pelo usuário ou pelo auto-match.
+   */
+  private async routeCueViaCueContext(deviceId: string): Promise<boolean> {
+    const streamDest = this.ensureCueStreamDest();
+    if (!this.ctx || !streamDest) return false;
+
+    if (!this.cueOutputCtx) {
+      this.cueOutputCtx = this.createAudioContext();
+    }
+    const cueCtx = this.cueOutputCtx as AudioContext & {
+      setSinkId?: (id: string | { type: "none" }) => Promise<void>;
+    };
+    if (typeof cueCtx.setSinkId !== "function") return false;
+    if (cueCtx === this.ctx) return false;
+
+    if (cueCtx.state === "suspended") {
+      try {
+        await cueCtx.resume();
+      } catch {
+        // Sem gesto do usuário o Chrome pode recusar o resume; o setSinkId ainda vale.
+      }
+    }
+    await cueCtx.setSinkId(deviceId);
+
+    if (this.cueOutputSource) {
+      try {
+        this.cueOutputSource.disconnect();
+      } catch {
+        // O source anterior pode já ter sido solto.
+      }
+      this.cueOutputSource = null;
+    }
+    this.cueOutputSource = cueCtx.createMediaStreamSource(streamDest.stream);
+    this.cueOutputSource.connect(cueCtx.destination);
+    return true;
+  }
+
+  /**
+   * Diz se o browser expõe `HTMLAudioElement.setSinkId` para o fallback legado.
+   */
+  private supportsLegacyCueStream(): boolean {
+    return (
+      typeof HTMLAudioElement !== "undefined" && "setSinkId" in HTMLAudioElement.prototype
+    );
+  }
+
+  /**
+   * Pausa o elemento legado e solta o bus de fone do stream.
+   */
+  private teardownLegacyCueStream(): void {
+    if (this.cueAudioEl) {
+      this.cueAudioEl.pause();
+    }
+    if (!this.headphonesGain || !this.cueStreamDest) return;
+    try {
+      this.headphonesGain.disconnect(this.cueStreamDest);
+    } catch {
+      // O fallback pode não estar ativo.
+    }
+  }
+
+  /**
+   * Solta o contexto de fone e o elemento legado sem mexer no master.
+   */
+  private teardownCueSplit(): void {
+    this.teardownLegacyCueStream();
+    if (this.cueOutputSource) {
+      try {
+        this.cueOutputSource.disconnect();
+      } catch {
+        // O source de fone pode já ter sido solto.
+      }
+      this.cueOutputSource = null;
+    }
+  }
+
+  /**
+   * Roteia o cue por `MediaStream` quando o contexto de fone não tem `setSinkId`.
+   *
+   * @param deviceId Saída PHONES escolhida pelo usuário.
+   */
+  private async routeCueViaLegacyStream(deviceId: string): Promise<boolean> {
+    const streamDest = this.ensureCueStreamDest();
+    if (!this.ctx || !this.headphonesGain || !streamDest || !this.supportsLegacyCueStream()) {
+      return false;
+    }
+
+    if (!this.cueAudioEl) {
+      this.cueAudioEl = new Audio();
+      this.cueAudioEl.autoplay = true;
+      this.cueAudioEl.volume = 1;
+    }
+
     const cueAudio = this.cueAudioEl;
-    if (!cueDest || !cueAudio) return;
-    this.headphonesGain.disconnect();
-    this.headphonesGain.connect(cueDest);
     await cueAudio.setSinkId(deviceId);
+    if (cueAudio.srcObject !== streamDest.stream) {
+      cueAudio.srcObject = streamDest.stream;
+    }
     await cueAudio.play();
+    return true;
   }
 
   analyser(id: DeckId): AnalyserNode | null {
@@ -341,8 +630,25 @@ export class MamuteEngine {
   }
 
   effectiveBpm(id: DeckId): number {
-    const deck = this.snapshot[id];
-    return deck.bpm * (1 + deck.pitch / 100);
+    return this.snapshot[id].bpm * this.playbackRateFor(id);
+  }
+
+  /**
+   * Fase normalizada 0–1 alinhada ao relógio do Web Audio durante playback.
+   *
+   * @param id Deck consultado.
+   */
+  livePhase(id: DeckId): number {
+    return this.computeLiveTransport(id).phase;
+  }
+
+  /**
+   * Posição em segundos no arquivo, alinhada ao relógio do Web Audio.
+   *
+   * @param id Deck consultado.
+   */
+  livePositionSec(id: DeckId): number {
+    return this.computeLiveTransport(id).positionSec;
   }
 
   async toggle(id: DeckId): Promise<void> {
@@ -355,9 +661,14 @@ export class MamuteEngine {
     this.start(id);
   }
 
-  loadTrack(id: DeckId, trackId: string): void {
-    const track = getTrainingTrack(trackId);
-    if (!track) return;
+  /**
+   * Aplica metadados sintéticos no deck e reconstrói o buffer de treino.
+   * Usado pelos testes do engine; a cabine carrega só via API ou arquivo.
+   *
+   * @param id Deck destino.
+   * @param track Metadados completos da faixa.
+   */
+  setDeckTrack(id: DeckId, track: DeckTrack): void {
     const wasPlaying = this.snapshot[id].playing;
     if (wasPlaying) this.stop(id);
     this.snapshot[id].track = track;
@@ -368,8 +679,11 @@ export class MamuteEngine {
     this.snapshot[id].positionSec = 0;
     this.snapshot[id].sourceKind = "synthetic";
     this.snapshot[id].peaks = null;
+    this.snapshot[id].waveformV10 = null;
+    this.snapshot[id].beatGrid = null;
     this.rebuildBuffer(id);
     if (this.snapshot[id].sync) this.applySync(id);
+    if (this.snapshot[id].keySync) this.recomputeKeyShift(id);
     if (wasPlaying) this.start(id);
   }
 
@@ -391,6 +705,10 @@ export class MamuteEngine {
     this.snapshot[id].positionSec = 0;
     this.snapshot[id].peaks =
       meta.peaks && meta.peaks.length > 0 ? meta.peaks : computePeaks(buffer, 512);
+    this.snapshot[id].waveformV10 =
+      meta.waveformV10 ??
+      computeWaveformBandsFromBuffer(buffer, resolveDetailBinCount(buffer.duration));
+    this.snapshot[id].beatGrid = meta.beatGrid ?? null;
     this.snapshot[id].track = {
       id: `file:${meta.title}`,
       title: meta.title,
@@ -407,6 +725,7 @@ export class MamuteEngine {
     this.snapshot[id].cueBeat = 0;
     this.snapshot[id].phase = 0;
     if (this.snapshot[id].sync) this.applySync(id);
+    if (this.snapshot[id].keySync) this.recomputeKeyShift(id);
     if (wasPlaying) this.start(id);
   }
 
@@ -451,8 +770,7 @@ export class MamuteEngine {
   setPitch(id: DeckId, pitch: number): void {
     this.snapshot[id].pitch = pitch;
     if (this.snapshot[id].sync) this.applySync(id);
-    const source = this.decks?.[id].source;
-    if (source) source.playbackRate.value = 1 + this.snapshot[id].pitch / 100;
+    this.applyPlaybackRate(id);
   }
 
   setEq(id: DeckId, band: keyof DeckState["eq"], value: number): void {
@@ -463,6 +781,7 @@ export class MamuteEngine {
   setTrim(id: DeckId, value: number): void {
     this.snapshot[id].trim = value;
     if (this.decks?.[id].trim) this.decks[id].trim.gain.value = value;
+    this.applyCueRouting();
   }
 
   setFilter(id: DeckId, value: number): void {
@@ -503,14 +822,15 @@ export class MamuteEngine {
   setSync(id: DeckId, enabled: boolean): void {
     this.snapshot[id].sync = enabled;
     if (enabled) this.applySync(id);
+    else this.applyPlaybackRate(id);
   }
 
   setMasterDeck(id: DeckId): void {
     this.snapshot.masterDeck = id;
-    this.snapshot.a.masterTempo = id === "a";
-    this.snapshot.b.masterTempo = id === "b";
     if (this.snapshot.a.sync) this.applySync("a");
     if (this.snapshot.b.sync) this.applySync("b");
+    if (this.snapshot.a.keySync) this.recomputeKeyShift("a");
+    if (this.snapshot.b.keySync) this.recomputeKeyShift("b");
   }
 
   setCueMonitor(id: DeckId, enabled: boolean): void {
@@ -524,6 +844,73 @@ export class MamuteEngine {
 
   setQuantize(id: DeckId, enabled: boolean): void {
     this.snapshot[id].quantize = enabled;
+  }
+
+  /**
+   * Liga ou desliga o SLIP. Com o deck tocando, arma o relógio fantasma.
+   *
+   * @param id Deck alvo.
+   * @param enabled Novo valor do flag.
+   */
+  setSlip(id: DeckId, enabled: boolean): void {
+    this.snapshot[id].slip = enabled;
+    if (!enabled) {
+      this.slipClock[id] = null;
+      this.slipHotCueSlot[id] = null;
+      return;
+    }
+    if (this.snapshot[id].playing) this.armSlipClock(id);
+  }
+
+  /**
+   * MT / key lock: flag de tela. Neste corte não altera o playbackRate.
+   *
+   * @param id Deck alvo.
+   * @param enabled Novo valor do flag.
+   */
+  setKeyLock(id: DeckId, enabled: boolean): void {
+    this.snapshot[id].keyLock = enabled;
+  }
+
+  /**
+   * KEY SYNC: calcula o desvio de semitom contra o MASTER e aplica no rate
+   * só quando o beat sync daquele deck está desligado.
+   *
+   * @param id Deck alvo.
+   * @param enabled Liga ou zera o ajuste.
+   */
+  setKeySync(id: DeckId, enabled: boolean): void {
+    this.snapshot[id].keySync = enabled;
+    if (!enabled) {
+      this.snapshot[id].keyShift = 0;
+      this.applyPlaybackRate(id);
+      return;
+    }
+    this.recomputeKeyShift(id);
+  }
+
+  /**
+   * Ajusta o tom em um semitom, limitado a −6…+6.
+   *
+   * @param id Deck alvo.
+   * @param direction Subir ou descer um semitom.
+   */
+  nudgeKeyShift(id: DeckId, direction: -1 | 1): void {
+    const next = this.snapshot[id].keyShift + direction;
+    this.snapshot[id].keyShift = Math.min(KEY_SHIFT_MAX, Math.max(KEY_SHIFT_MIN, next));
+    this.applyPlaybackRate(id);
+  }
+
+  /**
+   * Troca AU/MA. No manual o próximo toque no tamanho grava IN.
+   *
+   * @param id Deck alvo.
+   * @param mode Auto loop ou IN/OUT.
+   */
+  setLoopMode(id: DeckId, mode: LoopMode): void {
+    const loop = this.snapshot[id].loop;
+    loop.mode = mode;
+    if (mode === "manual") loop.manualNext = "in";
   }
 
   setCueBeat(id: DeckId, beat: number): void {
@@ -552,6 +939,7 @@ export class MamuteEngine {
     if (nodes) nodes.cuePreview = true;
     this.snapshot[id].phase = this.beatToPhase(id, this.snapshot[id].cueBeat);
     this.start(id);
+    this.applyGains();
   }
 
   /**
@@ -567,6 +955,7 @@ export class MamuteEngine {
     deck.phase = this.beatToPhase(id, deck.cueBeat);
     deck.positionSec = this.beatToSeconds(id, deck.cueBeat);
     this.stop(id, { preservePhase: true });
+    this.applyGains();
   }
 
   setHotCue(id: DeckId, slot: number): void {
@@ -584,16 +973,48 @@ export class MamuteEngine {
     else this.restart(id);
   }
 
+  /**
+   * Press do pad com SLIP: grava o cue se estiver vazio, ou salta e segura a âncora.
+   *
+   * @param id Deck do pad.
+   * @param slot Slot 1–8.
+   */
+  pressSlipHotCue(id: DeckId, slot: number): void {
+    const cue = this.snapshot[id].hotCues.find((item) => item.slot === slot);
+    if (!cue) return;
+    if (!cue.set) {
+      this.setHotCue(id, slot);
+      return;
+    }
+    this.armSlipClock(id);
+    this.slipHotCueSlot[id] = slot;
+    this.triggerHotCue(id, slot);
+  }
+
+  /**
+   * Release do pad com SLIP: volta à posição fantasma se o press tinha saltado.
+   *
+   * @param id Deck do pad.
+   * @param slot Slot 1–8.
+   */
+  releaseSlipHotCue(id: DeckId, slot: number): void {
+    if (this.slipHotCueSlot[id] !== slot) return;
+    this.slipHotCueSlot[id] = null;
+    this.restoreSlip(id);
+  }
+
   toggleLoop(id: DeckId): void {
     const loop = this.snapshot[id].loop;
     if (!loop.active) {
       const beat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
       loop.inBeat = beat;
-      loop.outBeat = beat + 4;
+      loop.outBeat = beat + loop.beats;
       loop.active = true;
+      if (this.snapshot[id].slip) this.armSlipClock(id);
       if (this.snapshot[id].playing) this.restart(id);
       return;
     }
+    if (this.snapshot[id].slip) this.restoreSlip(id);
     loop.active = false;
     loop.inBeat = null;
     loop.outBeat = null;
@@ -612,6 +1033,8 @@ export class MamuteEngine {
       loop.outBeat = loop.inBeat + 4;
     }
     loop.active = true;
+    loop.manualNext = "out";
+    if (this.snapshot[id].slip) this.armSlipClock(id);
     if (this.snapshot[id].playing) this.restart(id);
   }
 
@@ -631,6 +1054,9 @@ export class MamuteEngine {
       loop.outBeat = loop.inBeat + 4;
     }
     loop.active = true;
+    loop.manualNext = "in";
+    if (loop.inBeat !== null) loop.beats = Math.max(0.25, loop.outBeat - loop.inBeat);
+    if (this.snapshot[id].slip) this.armSlipClock(id);
     if (this.snapshot[id].playing) this.restart(id);
   }
 
@@ -641,9 +1067,13 @@ export class MamuteEngine {
    */
   loopHalve(id: DeckId): void {
     const loop = this.snapshot[id].loop;
-    if (!loop.active || loop.inBeat === null || loop.outBeat === null) return;
+    if (!loop.active || loop.inBeat === null || loop.outBeat === null) {
+      loop.beats = stepLoopBeats(loop.beats, -1);
+      return;
+    }
     const span = loop.outBeat - loop.inBeat;
     loop.outBeat = loop.inBeat + span / 2;
+    loop.beats = Math.max(0.25, loop.outBeat - loop.inBeat);
     if (this.snapshot[id].playing) this.restart(id);
   }
 
@@ -654,9 +1084,13 @@ export class MamuteEngine {
    */
   loopDouble(id: DeckId): void {
     const loop = this.snapshot[id].loop;
-    if (!loop.active || loop.inBeat === null || loop.outBeat === null) return;
+    if (!loop.active || loop.inBeat === null || loop.outBeat === null) {
+      loop.beats = stepLoopBeats(loop.beats, 1);
+      return;
+    }
     const span = loop.outBeat - loop.inBeat;
     loop.outBeat = loop.inBeat + span * 2;
+    loop.beats = loop.outBeat - loop.inBeat;
     if (this.snapshot[id].playing) this.restart(id);
   }
 
@@ -671,7 +1105,9 @@ export class MamuteEngine {
     const inBeat = this.quantizeBeat(id, this.phaseToBeat(id, this.snapshot[id].phase));
     loop.inBeat = inBeat;
     loop.outBeat = inBeat + beats;
+    loop.beats = beats;
     loop.active = true;
+    if (this.snapshot[id].slip) this.armSlipClock(id);
     if (this.snapshot[id].playing) this.restart(id);
   }
 
@@ -698,6 +1134,7 @@ export class MamuteEngine {
   scratchBegin(id: DeckId): void {
     const nodes = this.decks?.[id];
     if (nodes) nodes.scratching = true;
+    if (this.snapshot[id].slip) this.armSlipClock(id);
   }
 
   /**
@@ -708,7 +1145,7 @@ export class MamuteEngine {
    */
   scratchTick(id: DeckId, delta: number): void {
     const nodes = this.decks?.[id];
-    if (!nodes?.scratching || this.snapshot[id].jogMode !== "vinyl") return;
+    if (this.snapshot[id].jogMode === "vinyl" && !nodes?.scratching) return;
     this.seek(id, this.snapshot[id].phase + delta);
   }
 
@@ -720,6 +1157,7 @@ export class MamuteEngine {
   scratchEnd(id: DeckId): void {
     const nodes = this.decks?.[id];
     if (nodes) nodes.scratching = false;
+    if (this.snapshot[id].slip) this.restoreSlip(id);
   }
 
   /**
@@ -746,10 +1184,10 @@ export class MamuteEngine {
     deck.phase = (deck.phase + bump + 1) % 1;
     const source = nodes?.source;
     if (source) {
-      const rate = 1 + deck.pitch / 100 + direction * 0.04;
+      const rate = this.playbackRateFor(id) + direction * 0.04;
       source.playbackRate.value = rate;
       window.setTimeout(() => {
-        if (source.playbackRate) source.playbackRate.value = 1 + deck.pitch / 100;
+        if (source.playbackRate) source.playbackRate.value = this.playbackRateFor(id);
       }, 120);
     }
   }
@@ -792,8 +1230,118 @@ export class MamuteEngine {
     const target = master.bpm;
     const deck = this.snapshot[id];
     deck.pitch = ((target / deck.bpm) - 1) * 100;
+    this.applyPlaybackRate(id);
+  }
+
+  /**
+   * Rate ouvido: pitch do fader, vezes o KEY SYNC só se o beat sync estiver off.
+   *
+   * @param id Deck consultado.
+   */
+  playbackRateFor(id: DeckId): number {
+    const deck = this.snapshot[id];
+    const pitchRate = 1 + deck.pitch / 100;
+    if (deck.sync || deck.keyShift === 0) return pitchRate;
+    return pitchRate * 2 ** (deck.keyShift / 12);
+  }
+
+  /**
+   * Escreve o rate corrente no BufferSource, se ele existir.
+   *
+   * @param id Deck a atualizar.
+   */
+  private applyPlaybackRate(id: DeckId): void {
     const source = this.decks?.[id].source;
-    if (source) source.playbackRate.value = 1 + deck.pitch / 100;
+    if (source) source.playbackRate.value = this.playbackRateFor(id);
+  }
+
+  /**
+   * Recalcula `keyShift` para casar o tom do MASTER, limitado a −6…+6.
+   *
+   * @param id Deck com KEY SYNC ligado.
+   */
+  private recomputeKeyShift(id: DeckId): void {
+    const deck = this.snapshot[id];
+    const masterKey = this.snapshot[this.snapshot.masterDeck].track.key;
+    const delta = semitoneDelta(deck.track.key, masterKey);
+    deck.keyShift = Math.min(KEY_SHIFT_MAX, Math.max(KEY_SHIFT_MIN, delta));
+    this.applyPlaybackRate(id);
+  }
+
+  /**
+   * Marca a origem do relógio fantasma do SLIP na posição atual.
+   *
+   * @param id Deck com SLIP ligado.
+   */
+  private armSlipClock(id: DeckId): void {
+    if (!this.snapshot[id].slip) {
+      this.slipClock[id] = null;
+      return;
+    }
+    if (this.slipClock[id]) return;
+    this.slipClock[id] = {
+      originSec: this.snapshot[id].positionSec,
+      originTime: this.ctx?.currentTime ?? 0,
+    };
+  }
+
+  /**
+   * Religa o relógio SLIP depois do play, sem contar o tempo em que o deck ficou pausado.
+   *
+   * @param id Deck que voltou a tocar.
+   */
+  private resumeSlipClock(id: DeckId): void {
+    if (!this.snapshot[id].slip) return;
+    const clock = this.slipClock[id];
+    if (clock) {
+      this.slipClock[id] = {
+        originSec: clock.originSec,
+        originTime: this.ctx?.currentTime ?? 0,
+      };
+      return;
+    }
+    this.armSlipClock(id);
+  }
+
+  /**
+   * Posição em que o deck estaria se o gesto SLIP não tivesse existido.
+   *
+   * @param id Deck consultado.
+   */
+  private phantomSlipSec(id: DeckId): number {
+    const clock = this.slipClock[id];
+    if (!clock || !this.snapshot[id].slip) return this.snapshot[id].positionSec;
+    const now = this.ctx?.currentTime ?? clock.originTime;
+    const elapsed = this.snapshot[id].playing ? now - clock.originTime : 0;
+    return Math.max(0, clock.originSec + elapsed * this.playbackRateFor(id));
+  }
+
+  /**
+   * Congela a âncora SLIP na posição fantasma atual, para o pause não recuar.
+   *
+   * @param id Deck que pausou.
+   */
+  private freezeSlipClock(id: DeckId): void {
+    if (!this.snapshot[id].slip || !this.slipClock[id]) return;
+    this.slipClock[id] = {
+      originSec: this.phantomSlipSec(id),
+      originTime: this.ctx?.currentTime ?? 0,
+    };
+  }
+
+  /**
+   * Devolve o playhead à posição fantasma e reinicia a âncora.
+   *
+   * @param id Deck em SLIP.
+   */
+  private restoreSlip(id: DeckId): void {
+    if (!this.snapshot[id].slip) return;
+    const targetSec = this.phantomSlipSec(id);
+    const duration = this.snapshot[id].durationSec || this.decks?.[id].buffer?.duration || 1;
+    const phase = duration > 0 ? (((targetSec / duration) % 1) + 1) % 1 : 0;
+    this.slipClock[id] = null;
+    this.seek(id, phase);
+    if (this.snapshot[id].playing) this.armSlipClock(id);
   }
 
   private applyEq(id: DeckId): void {
@@ -892,7 +1440,7 @@ export class MamuteEngine {
     if (!nodes || nodes.source !== source) return;
     nodes.source.disconnect();
     nodes.source = null;
-    this.snapshot[id].playing = false;
+    this.setPlayingState(id, false);
     this.snapshot[id].phase = 0;
     this.snapshot[id].positionSec = 0;
   }
@@ -915,7 +1463,7 @@ export class MamuteEngine {
     source.buffer = nodes.buffer;
     source.loop = this.shouldLoopBuffer(id);
     this.applyLoopRegion(id, source);
-    source.playbackRate.value = 1 + deck.pitch / 100;
+    source.playbackRate.value = this.playbackRateFor(id);
     source.connect(nodes.trim);
     const duration = nodes.buffer.duration;
     const offset = Math.min(duration * deck.phase, Math.max(0, duration - 0.01));
@@ -925,7 +1473,8 @@ export class MamuteEngine {
     }
     nodes.source = source;
     nodes.startedAt = this.ctx.currentTime - offset / source.playbackRate.value;
-    deck.playing = true;
+    this.setPlayingState(id, true);
+    if (deck.slip) this.resumeSlipClock(id);
   }
 
   /**
@@ -963,21 +1512,47 @@ export class MamuteEngine {
     if (!options.preservePhase && nodes) nodes.cuePreview = false;
     if (nodes?.source && this.ctx) {
       if (!options.preservePhase) {
-        const elapsed = this.ctx.currentTime - nodes.startedAt;
-        const rate = 1 + this.snapshot[id].pitch / 100;
-        const loopDuration = nodes.buffer?.duration ?? 1;
-        const progress = (elapsed * rate) / loopDuration;
-        nodes.pausedPhase = this.shouldLoopBuffer(id)
-          ? progress % 1
-          : Math.min(1, progress);
-        this.snapshot[id].phase = nodes.pausedPhase;
-        this.snapshot[id].positionSec = nodes.pausedPhase * loopDuration;
+        const live = this.computeLiveTransport(id);
+        nodes.pausedPhase = live.phase;
+        this.snapshot[id].phase = live.phase;
+        this.snapshot[id].positionSec = live.positionSec;
       }
       nodes.source.stop();
       nodes.source.disconnect();
       nodes.source = null;
     }
-    this.snapshot[id].playing = false;
+    this.freezeSlipClock(id);
+    this.setPlayingState(id, false);
+  }
+
+  /**
+   * Calcula fase e posição a partir do BufferSource ativo ou do snapshot pausado.
+   *
+   * @param id Deck consultado.
+   */
+  private computeLiveTransport(id: DeckId): { phase: number; positionSec: number } {
+    const deck = this.snapshot[id];
+    const nodes = this.decks?.[id];
+    const loopDuration = nodes?.buffer?.duration ?? deck.durationSec ?? 1;
+
+    if (!deck.playing || !this.ctx || !nodes?.source) {
+      return {
+        phase: deck.phase,
+        positionSec: deck.positionSec,
+      };
+    }
+
+    const elapsed = this.ctx.currentTime - nodes.startedAt;
+    const rate = nodes.source.playbackRate.value;
+    const progress = (elapsed * rate) / loopDuration;
+
+    if (deck.sourceKind === "file" && !this.shouldLoopBuffer(id)) {
+      const phase = Math.min(1, Math.max(0, progress));
+      return { phase, positionSec: phase * loopDuration };
+    }
+
+    const phase = ((progress % 1) + 1) % 1;
+    return { phase, positionSec: phase * loopDuration };
   }
 
   private startPhaseLoop(): void {
@@ -988,23 +1563,22 @@ export class MamuteEngine {
         const deck = this.snapshot[id];
         const nodes = this.decks![id];
         if (!deck.playing || !nodes.source) return;
+
         const elapsed = this.ctx!.currentTime - nodes.startedAt;
-        const rate = 1 + deck.pitch / 100;
+        const rate = nodes.source.playbackRate.value;
         const loopDuration = nodes.buffer?.duration ?? 1;
         const progress = (elapsed * rate) / loopDuration;
-        if (deck.sourceKind === "file" && !this.shouldLoopBuffer(id)) {
-          if (progress >= 1) {
-            this.stop(id);
-            deck.phase = 0;
-            deck.positionSec = 0;
-            return;
-          }
-          deck.phase = progress;
-          deck.positionSec = progress * loopDuration;
-        } else {
-          deck.phase = progress % 1;
-          deck.positionSec = deck.phase * loopDuration;
+
+        if (deck.sourceKind === "file" && !this.shouldLoopBuffer(id) && progress >= 1) {
+          this.stop(id);
+          deck.phase = 0;
+          deck.positionSec = 0;
+          return;
         }
+
+        const live = this.computeLiveTransport(id);
+        deck.phase = live.phase;
+        deck.positionSec = live.positionSec;
         deck.durationSec = loopDuration;
       });
     }, 50);
@@ -1015,8 +1589,8 @@ export class MamuteEngine {
     const a = Math.cos((x * Math.PI) / 2);
     const b = Math.sin((x * Math.PI) / 2);
     if (this.decks) {
-      this.decks.a.gain.gain.value = this.snapshot.a.gain * a;
-      this.decks.b.gain.gain.value = this.snapshot.b.gain * b;
+      this.decks.a.gain.gain.value = this.decks.a.cuePreview ? 0 : this.snapshot.a.gain * a;
+      this.decks.b.gain.gain.value = this.decks.b.cuePreview ? 0 : this.snapshot.b.gain * b;
     }
     if (this.master) this.master.gain.value = this.snapshot.master;
     this.applyCueRouting();
@@ -1024,31 +1598,62 @@ export class MamuteEngine {
 
   /**
    * Atualiza o bus de cue, o blend cue/master e o volume de fone.
+   *
+   * O knob HEADPHONES MIXING da DDJ-400 mistura PFL e master no bus de fone
+   * somente quando o MASTER CUE está ligado. Sem MASTER CUE, o PFL segue o
+   * TRIM de cada canal com CUE ativo e o knob não apaga o cue de canal.
    */
   private applyCueRouting(): void {
     if (!this.decks) return;
-    const x = this.snapshot.crossfader;
-    const xfA = Math.cos((x * Math.PI) / 2);
-    const xfB = Math.sin((x * Math.PI) / 2);
 
     (["a", "b"] as const).forEach((id) => {
       const deck = this.snapshot[id];
       const nodes = this.decks![id];
-      const xf = id === "a" ? xfA : xfB;
-      nodes.cueSend.gain.value = deck.cueMonitor ? deck.gain * xf : 0;
+      // PFL é pré-fader e independente do crossfader, como no mixer analógico da DDJ-400.
+      // O CUE momentâneo do CDJ também vai só ao bus de fone, senão vaza no master.
+      nodes.cueSend.gain.value = deck.cueMonitor || nodes.cuePreview ? deck.trim : 0;
     });
 
     if (!this.cuePflGain || !this.cueMasterGain || !this.headphonesGain) return;
 
+    const mix = this.snapshot.cueMix;
     if (this.snapshot.masterCue) {
-      this.cuePflGain.gain.value = 0;
-      this.cueMasterGain.gain.value = 1;
+      this.cuePflGain.gain.value = 1 - mix;
+      this.cueMasterGain.gain.value = mix;
     } else {
-      this.cuePflGain.gain.value = 1 - this.snapshot.cueMix;
-      this.cueMasterGain.gain.value = this.snapshot.cueMix;
+      this.cuePflGain.gain.value = 1;
+      this.cueMasterGain.gain.value = 0;
     }
     this.headphonesGain.gain.value = this.snapshot.booth;
   }
 }
 
-export const engine = new MamuteEngine();
+const ENGINE_SINGLETON_KEY = "__mamuteAudioEngine";
+
+type EngineHost = typeof globalThis & {
+  [ENGINE_SINGLETON_KEY]?: MamuteEngine;
+};
+
+/**
+ * Reutiliza o engine vivo entre recargas HMR do Vite.
+ *
+ * Sem isso o módulo recriava `MamuteEngine` com as faixas de treino enquanto o
+ * áudio e o espelho DOM continuavam no grafo antigo, e a UI ficava partida.
+ */
+function resolveEngineSingleton(): MamuteEngine {
+  const host = globalThis as EngineHost;
+  if (!host[ENGINE_SINGLETON_KEY]) {
+    host[ENGINE_SINGLETON_KEY] = new MamuteEngine();
+  }
+  return host[ENGINE_SINGLETON_KEY];
+}
+
+export const engine = resolveEngineSingleton();
+
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    void import("./mixer-snapshot-store").then(({ notifyMixerSnapshotChange }) => {
+      notifyMixerSnapshotChange();
+    });
+  });
+}

@@ -4,6 +4,16 @@ import { expect, type Page } from "@playwright/test";
 export const MIXER_KICK_FIXTURE = path.resolve("tests/fixtures/mixer-kick-120bpm.wav");
 
 /**
+ * Espera a collection da API mock ficar visível na cabine.
+ *
+ * @param page Página já em `/mixer`.
+ */
+export async function waitForLibraryBrowse(page: Page): Promise<void> {
+  await expect(page.locator(".mixer-cabinet")).toHaveAttribute("data-browse-source", "remote");
+  await expect(page.locator(".collection-track-row").first()).toBeVisible({ timeout: 10_000 });
+}
+
+/**
  * Envia o MP3 de fixture para o input escondido do deck e espera o decode.
  *
  * @param page Página em `/mixer`.

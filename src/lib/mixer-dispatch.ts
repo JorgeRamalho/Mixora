@@ -3,6 +3,7 @@ import type {
   DeckFileMeta,
   DeckId,
   JogMode,
+  LoopMode,
   MixerAction,
   MixerSnapshot,
 } from "../types/mixer";
@@ -33,7 +34,13 @@ export type MixerEngine = {
   setCueMonitor(id: DeckId, enabled: boolean): void;
   setJogMode(id: DeckId, mode: JogMode): void;
   setQuantize(id: DeckId, enabled: boolean): void;
-  loadTrack(id: DeckId, trackId: string): void;
+  setSlip(id: DeckId, enabled: boolean): void;
+  setKeyLock(id: DeckId, enabled: boolean): void;
+  setKeySync(id: DeckId, enabled: boolean): void;
+  nudgeKeyShift(id: DeckId, direction: -1 | 1): void;
+  setLoopMode(id: DeckId, mode: LoopMode): void;
+  pressSlipHotCue(id: DeckId, slot: number): void;
+  releaseSlipHotCue(id: DeckId, slot: number): void;
   callCue(id: DeckId): void;
   pressCue(id: DeckId): void;
   releaseCue(id: DeckId): void;
@@ -82,8 +89,7 @@ export type DispatchResult =
  */
 export type ResolvedPlan =
   | { kind: "noop" }
-  | { kind: "browse-move"; deckId: DeckId; nextCursor: number }
-  | { kind: "browse-switch-deck"; nextDeck: DeckId }
+  | { kind: "browse-move"; nextCursor: number }
   | { kind: "absolute"; action: MixerAction }
   | { kind: "engine-toggle"; id: DeckId }
   | { kind: "engine-loop"; id: DeckId }
@@ -98,18 +104,24 @@ export type ResolvedPlan =
   | { kind: "engine-scratch-end"; id: DeckId }
   | { kind: "engine-cue-press"; id: DeckId }
   | { kind: "engine-cue-release"; id: DeckId }
+  | { kind: "engine-slip-hotcue-press"; id: DeckId; slot: number }
+  | { kind: "engine-slip-hotcue-release"; id: DeckId; slot: number }
   | { kind: "engine-nudge"; id: DeckId; direction: -1 | 1 }
   | { kind: "engine-file"; id: DeckId; file: File }
   | { kind: "ui-op"; op: MixerUiOp };
 
 export type MixerDispatchDeps = {
   eng: MixerEngine;
-  browseByDeck: Record<DeckId, BrowseState>;
-  getBrowseActiveDeck: () => DeckId;
-  setBrowseActiveDeck: (deckId: DeckId) => void;
+  browse: BrowseState;
   dispatchReducer: (action: MixerAction) => void;
   onUiOp?: (op: MixerUiOp) => void;
   getBrowseSource?: () => BrowseSource;
+  /**
+   * Espelha os LEDs na hora em que o cue já está no snapshot.
+   * A cabine passa `() => requestLedSync({ force: true })`, porque o cache de
+   * delta perde o primeiro Note On quando a MIDI out ainda está fechando.
+   */
+  syncLedsOnCue?: () => void;
 };
 
 /**
@@ -167,8 +179,20 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "quantize":
       eng.setQuantize(action.id, action.value);
       return;
-    case "loadTrack":
-      eng.loadTrack(action.id, action.trackId);
+    case "slip":
+      eng.setSlip(action.id, action.value);
+      return;
+    case "keyLock":
+      eng.setKeyLock(action.id, action.value);
+      return;
+    case "keySync":
+      eng.setKeySync(action.id, action.value);
+      return;
+    case "nudgeKeyShift":
+      eng.nudgeKeyShift(action.id, action.direction);
+      return;
+    case "loopMode":
+      eng.setLoopMode(action.id, action.value);
       return;
     case "callCue":
       eng.callCue(action.id);
@@ -193,6 +217,12 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "toggleSync":
     case "toggleCueMonitor":
     case "toggleMasterCue":
+    case "toggleSlip":
+    case "toggleKeyLock":
+    case "toggleKeySync":
+    case "loopLengthPress":
+    case "hotCuePadPress":
+    case "hotCuePadRelease":
     case "cuePress":
     case "cueRelease":
     case "toggleLoop":
@@ -210,7 +240,6 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
     case "hotCuePad":
     case "nudge":
     case "browseMove":
-    case "browseHome":
     case "browseLoad":
     case "refresh":
     case "requestDeckLoad":
@@ -224,16 +253,15 @@ export function applyAbsoluteAction(eng: MixerEngine, action: MixerAction): void
  * Resolve uma ação de intenção em um plano, sem mutar o engine.
  *
  * @param eng Engine de onde ler playing, loop e hot cues.
- * @param browseByDeck Cursor da biblioteca por deck.
- * @param getBrowseActiveDeck Deck cuja playlist o encoder BROWSE navega.
+ * @param browse Cursor compartilhado da collection.
  * @param action Ação crua do mouse ou do MIDI.
+ * @param browseSource Fonte da collection. Sem caller, a cabine usa a API.
  */
 export function resolveMixerAction(
   eng: MixerEngine,
-  browseByDeck: Record<DeckId, BrowseState>,
-  getBrowseActiveDeck: () => DeckId,
+  browse: BrowseState,
   action: MixerAction,
-  browseSource: BrowseSource = "local",
+  browseSource: BrowseSource = "remote",
 ): ResolvedPlan {
   switch (action.type) {
     case "toggle":
@@ -257,6 +285,40 @@ export function resolveMixerAction(
         kind: "absolute",
         action: { type: "masterCue", value: !eng.snapshot.masterCue },
       };
+    case "toggleSlip":
+      return {
+        kind: "absolute",
+        action: { type: "slip", id: action.id, value: !eng.snapshot[action.id].slip },
+      };
+    case "toggleKeyLock":
+      return {
+        kind: "absolute",
+        action: { type: "keyLock", id: action.id, value: !eng.snapshot[action.id].keyLock },
+      };
+    case "toggleKeySync":
+      return {
+        kind: "absolute",
+        action: { type: "keySync", id: action.id, value: !eng.snapshot[action.id].keySync },
+      };
+    case "loopLengthPress": {
+      const loop = eng.snapshot[action.id].loop;
+      if (loop.mode === "manual") {
+        return loop.manualNext === "out"
+          ? { kind: "engine-loop-out", id: action.id }
+          : { kind: "engine-loop-in", id: action.id };
+      }
+      return { kind: "engine-beat-loop", id: action.id, beats: loop.beats };
+    }
+    case "hotCuePadPress":
+      if (eng.snapshot[action.id].slip) {
+        return { kind: "engine-slip-hotcue-press", id: action.id, slot: action.slot };
+      }
+      return resolveMixerAction(eng, browse, { type: "hotCuePad", id: action.id, slot: action.slot }, browseSource);
+    case "hotCuePadRelease":
+      if (eng.snapshot[action.id].slip) {
+        return { kind: "engine-slip-hotcue-release", id: action.id, slot: action.slot };
+      }
+      return { kind: "noop" };
     case "cuePress":
       return { kind: "engine-cue-press", id: action.id };
     case "cueRelease":
@@ -300,24 +362,18 @@ export function resolveMixerAction(
     }
     case "nudge":
       return { kind: "engine-nudge", id: action.id, direction: action.direction };
-    case "browseMove": {
-      const deckId = getBrowseActiveDeck();
-      const browse = browseByDeck[deckId];
-      return { kind: "browse-move", deckId, nextCursor: browse.getCursor() + action.delta };
-    }
-    case "browseHome": {
-      const current = getBrowseActiveDeck();
-      const nextDeck = current === "a" ? "b" : "a";
-      return { kind: "browse-switch-deck", nextDeck };
-    }
+    case "browseMove":
+      return { kind: "browse-move", nextCursor: browse.getCursor() + action.delta };
     case "browseLoad":
-      return resolveLoadPlan(browseByDeck[action.id], action.id, browseSource, "arm");
+      return resolveLoadPlan(browse, action.id, browseSource, "cursor");
     case "requestDeckLoad":
       return resolveLoadPlan(
-        browseByDeck[action.id],
+        browse,
         action.id,
         action.source === "file" ? "local" : action.source === "library" ? "remote" : browseSource,
-        "open",
+        action.source === "file" ? "file" : browseSource === "local" && action.source !== "library"
+          ? "file"
+          : "cursor",
       );
     case "loadRemoteTrack":
       return { kind: "ui-op", op: { kind: "loadRemoteTrack", deckId: action.id, trackId: action.trackId } };
@@ -341,23 +397,20 @@ export function dispatchMixerAction(
 ): DispatchResult {
   const plan = resolveMixerAction(
     deps.eng,
-    deps.browseByDeck,
-    deps.getBrowseActiveDeck,
+    deps.browse,
     action,
-    deps.getBrowseSource?.() ?? "local",
+    deps.getBrowseSource?.() ?? "remote",
   );
 
   switch (plan.kind) {
     case "noop":
       return { kind: "noop" };
     case "browse-move":
-      deps.browseByDeck[plan.deckId].setCursor(plan.nextCursor);
-      return { kind: "ui-only" };
-    case "browse-switch-deck":
-      deps.setBrowseActiveDeck(plan.nextDeck);
+      deps.browse.setCursor(plan.nextCursor);
       return { kind: "ui-only" };
     case "absolute":
       deps.dispatchReducer(plan.action);
+      if (isCueSnapshotPlan(plan)) syncCueLeds(deps);
       return { kind: "applied" };
     case "engine-toggle": {
       const whenDone = deps.eng.toggle(plan.id).then(() => {
@@ -411,10 +464,20 @@ export function dispatchMixerAction(
       return { kind: "refresh" };
     case "engine-cue-press":
       deps.eng.pressCue(plan.id);
+      syncCueLeds(deps);
       deps.dispatchReducer({ type: "refresh" });
       return { kind: "refresh" };
     case "engine-cue-release":
       deps.eng.releaseCue(plan.id);
+      syncCueLeds(deps);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-slip-hotcue-press":
+      deps.eng.pressSlipHotCue(plan.id, plan.slot);
+      deps.dispatchReducer({ type: "refresh" });
+      return { kind: "refresh" };
+    case "engine-slip-hotcue-release":
+      deps.eng.releaseSlipHotCue(plan.id, plan.slot);
       deps.dispatchReducer({ type: "refresh" });
       return { kind: "refresh" };
     case "ui-op":
@@ -438,7 +501,8 @@ export function dispatchMixerAction(
 /**
  * Liga o dispatcher à cabine. O retorno é o callback único de mouse e MIDI.
  *
- * @param deps Engine, browse e o `dispatch` do `useReducer`.
+ * @param deps Engine, browse, o `dispatch` do `useReducer` e o espelho de LED
+ * do cue, que a cabine liga em `requestLedSync`.
  */
 export function createMixerDispatch(deps: MixerDispatchDeps): MixerDispatch {
   return (action) => {
@@ -447,31 +511,52 @@ export function createMixerDispatch(deps: MixerDispatchDeps): MixerDispatch {
 }
 
 /**
- * LOAD local abre o picker; LOAD remoto resolve o track_id do cursor.
+ * Diz se o plano absoluto já gravou um cue no snapshot e pode espelhar LEDs.
  *
- * @param browse Estado do encoder.
+ * @param plan Plano resolvido do dispatcher.
+ */
+function isCueSnapshotPlan(plan: ResolvedPlan): boolean {
+  if (plan.kind !== "absolute") return false;
+  switch (plan.action.type) {
+    case "cueMonitor":
+    case "masterCue":
+    case "callCue":
+    case "setCue":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Dispara o espelho de LED na hora do cue, sem esperar o refresh do React.
+ *
+ * @param deps Dispatcher da cabine, com o callback opcional de MIDI out.
+ */
+function syncCueLeds(deps: MixerDispatchDeps): void {
+  deps.syncLedsOnCue?.();
+}
+
+/**
+ * MIDI LOAD e o botão da tela resolvem o cursor da API. `source: file` abre o picker.
+ *
+ * @param browse Estado do encoder da collection.
  * @param deckId Deck destino.
  * @param source Fonte ativa, já resolvida pelo caller.
- * @param localKind Gesto local: armar o input ou abrir o diálogo.
+ * @param intent `cursor` carrega a faixa da lista; `file` abre o diálogo local.
  */
 function resolveLoadPlan(
   browse: BrowseState,
   deckId: DeckId,
   source: BrowseSource,
-  localKind: "arm" | "open",
+  intent: "cursor" | "file",
 ): ResolvedPlan {
-  if (source === "remote") {
-    const trackId = browse.resolveTrackId(browse.getCursor());
-    if (!trackId) return { kind: "noop" };
-    return { kind: "ui-op", op: { kind: "loadRemoteTrack", deckId, trackId } };
+  if (intent === "file") {
+    return { kind: "ui-op", op: { kind: "openFilePicker", deckId } };
   }
-  return {
-    kind: "ui-op",
-    op:
-      localKind === "arm"
-        ? { kind: "armFilePicker", deckId }
-        : { kind: "openFilePicker", deckId },
-  };
+  const trackId = browse.resolveTrackId(browse.getCursor());
+  if (!trackId) return { kind: "noop" };
+  return { kind: "ui-op", op: { kind: "loadRemoteTrack", deckId, trackId } };
 }
 
 /** Callback único da cabine: mouse, MIDI e testes injetam o mesmo union. */

@@ -2,11 +2,13 @@
  * Espelha o snapshot da cabine nos LEDs da DDJ-400 via MIDI out.
  *
  * Só envia o delta entre o snapshot anterior e o novo, porque o USB satura se
- * cada refresh de 80 ms mandar o mapa inteiro.
+ * cada refresh periódico mandar o mapa inteiro. O pedido passa por
+ * `requestLedSync`, que lê o engine logo após o dispatch.
  */
 
+import { engine } from "../audio-engine";
 import type { DeckId, MixerSnapshot } from "../../types/mixer";
-import { DDJ_STATUS, DECK_NOTE, HOT_CUE_FIRST_NOTE } from "./ddj-400-protocol";
+import { DDJ_STATUS, DECK_NOTE, HOT_CUE_FIRST_NOTE, MIXER_NOTE } from "./ddj-400-protocol";
 import { sendMidiOutput } from "./midi-session";
 
 const LED_ON = 0x7f;
@@ -21,6 +23,7 @@ interface LedState {
   pflB: boolean;
   loopA: boolean;
   loopB: boolean;
+  masterCue: boolean;
   hotA: boolean[];
   hotB: boolean[];
 }
@@ -38,8 +41,9 @@ function createLedState(): LedState {
     pflB: false,
     loopA: false,
     loopB: false,
-    hotA: [true, false, false, false],
-    hotB: [true, false, false, false],
+    masterCue: false,
+    hotA: [true, false, false, false, false, false, false, false],
+    hotB: [true, false, false, false, false, false, false, false],
   };
 }
 
@@ -60,8 +64,10 @@ function sendLed(status: number, note: number, on: boolean): void {
  * Sincroniza os LEDs de transporte e hot cue com o snapshot atual.
  *
  * @param snap Snapshot depois do dispatch.
+ * @param options.force True reenvia todos os LEDs, útil ao reconectar a DDJ-400.
  */
-export function syncDdj400Leds(snap: MixerSnapshot): void {
+export function syncDdj400Leds(snap: MixerSnapshot, options?: { force?: boolean }): void {
+  const force = options?.force ?? false;
   const next: LedState = {
     playA: snap.a.playing,
     playB: snap.b.playing,
@@ -71,37 +77,45 @@ export function syncDdj400Leds(snap: MixerSnapshot): void {
     pflB: snap.b.cueMonitor,
     loopA: snap.a.loop.active,
     loopB: snap.b.loop.active,
+    masterCue: snap.masterCue,
     hotA: snap.a.hotCues.map((cue) => cue.set),
     hotB: snap.b.hotCues.map((cue) => cue.set),
   };
 
-  if (next.playA !== previous.playA) {
+  const ledChanged = (nextVal: boolean, prevVal: boolean) => force || nextVal !== prevVal;
+
+  if (ledChanged(next.playA, previous.playA)) {
     sendLed(DDJ_STATUS.noteDeckA, DECK_NOTE.play, next.playA);
   }
-  if (next.playB !== previous.playB) {
+  if (ledChanged(next.playB, previous.playB)) {
     sendLed(DDJ_STATUS.noteDeckB, DECK_NOTE.play, next.playB);
   }
-  if (next.syncA !== previous.syncA) {
+  if (ledChanged(next.syncA, previous.syncA)) {
     sendLed(DDJ_STATUS.noteDeckA, DECK_NOTE.sync, next.syncA);
   }
-  if (next.syncB !== previous.syncB) {
+  if (ledChanged(next.syncB, previous.syncB)) {
     sendLed(DDJ_STATUS.noteDeckB, DECK_NOTE.sync, next.syncB);
   }
-  if (next.pflA !== previous.pflA) {
+  if (ledChanged(next.pflA, previous.pflA)) {
     sendLed(DDJ_STATUS.noteDeckA, DECK_NOTE.pfl, next.pflA);
   }
-  if (next.pflB !== previous.pflB) {
+  if (ledChanged(next.pflB, previous.pflB)) {
+    // Mixxx usa 0x54 no canal B; a lista Pioneer documenta 0x68 para M7-2.
     sendLed(DDJ_STATUS.noteDeckB, DECK_NOTE.pfl, next.pflB);
+    sendLed(DDJ_STATUS.noteDeckB, DECK_NOTE.pflDeckB, next.pflB);
   }
-  if (next.loopA !== previous.loopA) {
+  if (ledChanged(next.loopA, previous.loopA)) {
     sendLed(DDJ_STATUS.noteDeckA, DECK_NOTE.reloop, next.loopA);
   }
-  if (next.loopB !== previous.loopB) {
+  if (ledChanged(next.loopB, previous.loopB)) {
     sendLed(DDJ_STATUS.noteDeckB, DECK_NOTE.reloop, next.loopB);
   }
+  if (ledChanged(next.masterCue, previous.masterCue)) {
+    sendLed(DDJ_STATUS.noteBrowser, MIXER_NOTE.masterCue, next.masterCue);
+  }
 
-  syncHotCueLeds("a", next.hotA, previous.hotA);
-  syncHotCueLeds("b", next.hotB, previous.hotB);
+  syncHotCueLeds("a", next.hotA, previous.hotA, force);
+  syncHotCueLeds("b", next.hotB, previous.hotB, force);
 
   previous = next;
 }
@@ -110,15 +124,33 @@ export function syncDdj400Leds(snap: MixerSnapshot): void {
  * Envia só os pads de hot cue que mudaram de estado.
  *
  * @param id Deck cujos pads serão atualizados.
- * @param current Estado novo dos quatro slots.
- * @param prior Estado anterior dos quatro slots.
+ * @param current Estado novo dos oito slots.
+ * @param prior Estado anterior dos oito slots.
  */
-function syncHotCueLeds(id: DeckId, current: boolean[], prior: boolean[]): void {
+function syncHotCueLeds(
+  id: DeckId,
+  current: boolean[],
+  prior: boolean[],
+  force = false,
+): void {
   const status = id === "a" ? DDJ_STATUS.notePadDeckA : DDJ_STATUS.notePadDeckB;
   current.forEach((set, index) => {
-    if (set === prior[index]) return;
+    if (!force && set === prior[index]) return;
     sendLed(status, HOT_CUE_FIRST_NOTE + index, set);
   });
+}
+
+/**
+ * Espelha os LEDs a partir do engine logo após o dispatch.
+ *
+ * A leitura é síncrona porque o reducer já mutou o engine; adiar para
+ * microtask ou layout effect deixava a janela em que outro reattach MIDI
+ * fechava a porta de saída antes do Note On chegar à controladora.
+ *
+ * @param options.force True reenvia todos os LEDs, útil ao reconectar a DDJ-400.
+ */
+export function requestLedSync(options?: { force?: boolean }): void {
+  syncDdj400Leds(engine.snapshot, options);
 }
 
 /**

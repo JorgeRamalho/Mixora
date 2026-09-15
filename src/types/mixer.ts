@@ -2,19 +2,69 @@ export type DeckId = "a" | "b";
 
 export type JogMode = "vinyl" | "cdj";
 
-/** Fonte da lista do encoder BROWSE e do LOAD. */
+/** Auto loop de N beats versus IN/OUT manual, como AU/MA no Rekordbox. */
+export type LoopMode = "auto" | "manual";
+
+/** Próximo gesto do loop manual: grava IN e depois OUT. */
+export type LoopManualNext = "in" | "out";
+
+/** Tamanhos do auto loop, em beats. */
+export const LOOP_BEAT_STEPS = [1, 2, 4, 8, 16, 32] as const;
+
+/** Limites do ajuste de tom do KEY SYNC, em semitons. */
+export const KEY_SHIFT_MIN = -6;
+export const KEY_SHIFT_MAX = 6;
+
+/** Envelopes espectrais V10 para waveform colorida tipo Rekordbox. */
+export interface WaveformV10Bands {
+  bass: Float32Array;
+  mids: Float32Array;
+  highs: Float32Array;
+}
+
+/**
+ * Grid de batida reconstruído da análise V10.
+ * O backend não manda um array de tempos, e sim BPM refinado, duração do
+ * compasso e cues com `bar`+`sec`, de onde sai o offset do primeiro downbeat.
+ */
+export interface BeatGrid {
+  /** BPM da análise, em geral `bpm_refined`. */
+  bpm: number;
+  /** Tempo do beat 0 no arquivo, em segundos. */
+  offsetSec: number;
+  /** Batidas por compasso, 4 no 4/4. */
+  beatsPerBar: number;
+  /** Compassos por frase musical, em geral `phrase_bars`. */
+  phraseBars: number;
+}
+
+/** Fonte da lista do encoder BROWSE. A cabine usa `remote`; `local` só no picker de arquivo. */
 export type BrowseSource = "local" | "remote";
 
-/** Item leve usado no select do deck e no encoder BROWSE. */
+/** Recorte da collection remota: biblioteca local indexada ou catálogo Beatport. */
+export type RemoteCollectionMode = "library" | "catalog";
+
+/** Item leve usado na collection e no encoder BROWSE. */
 export interface BrowseTrackItem {
   id: string;
   title: string;
   artist: string;
+  /** Mix, EP ou álbum quando a API expõe `mix_name`. */
+  albumOrMix: string | null;
+  genre: string | null;
   bpm: number | null;
+  /** Código Camelot para filtro e KEY SYNC. */
   key: string | null;
+  /** Tom musical bruto da API, por exemplo `Gm`. */
+  musicalKey: string | null;
+  label: string | null;
+  durationMs: number | null;
+  /** Preview compacto da waveform V8. */
+  waveformPreview: readonly number[] | null;
 }
 
-export interface TrainingTrack {
+/** Metadados de faixa exibidos no deck, vindos da API ou de upload local. */
+export interface DeckTrack {
   id: string;
   title: string;
   artist: string;
@@ -39,7 +89,7 @@ export interface HotCue {
  * descartar os pads que a cabine não tem, e importar o `audio-engine` dentro do
  * mapa puro arrastaria a Web Audio para um módulo que roda sem página.
  */
-export const HOT_CUE_SLOTS = 4;
+export const HOT_CUE_SLOTS = 8;
 
 export interface DeckEq {
   high: number;
@@ -51,6 +101,23 @@ export interface DeckLoop {
   active: boolean;
   inBeat: number | null;
   outBeat: number | null;
+  mode: LoopMode;
+  beats: number;
+  manualNext: LoopManualNext;
+}
+
+/**
+ * Loop inicial de um deck: auto de 4 beats, desligado.
+ */
+export function createDeckLoop(): DeckLoop {
+  return {
+    active: false,
+    inBeat: null,
+    outBeat: null,
+    mode: "auto",
+    beats: 4,
+    manualNext: "in",
+  };
 }
 
 export interface DeckState {
@@ -62,20 +129,31 @@ export interface DeckState {
   eq: DeckEq;
   filter: number;
   sync: boolean;
-  masterTempo: boolean;
+  /** Trava o rótulo de tom no MT; neste corte não faz time-stretch. */
+  keyLock: boolean;
+  /** KEY SYNC ligado, com `keyShift` calculado contra o deck MASTER. */
+  keySync: boolean;
+  /** Semitons aplicados no rótulo e, se o beat sync estiver off, no rate. */
+  keyShift: number;
+  /** SLIP: scratch, loop e hot cue momentâneo voltam à posição fantasma. */
+  slip: boolean;
   cueMonitor: boolean;
   jogMode: JogMode;
   quantize: boolean;
   loop: DeckLoop;
   hotCues: HotCue[];
   cueBeat: number;
-  track: TrainingTrack;
+  track: DeckTrack;
   phase: number;
   /** `synthetic` é o loop de treino; `file` é buffer decodificado. */
   sourceKind: "synthetic" | "file";
   durationSec: number;
   positionSec: number;
   peaks: Float32Array | null;
+  /** Bandas bass/mids/highs da análise V10, quando disponível. */
+  waveformV10: WaveformV10Bands | null;
+  /** Grid de batida da análise; null no loop sintético ou arquivo sem análise. */
+  beatGrid: BeatGrid | null;
 }
 
 /** Metadados de um arquivo carregado no deck. */
@@ -87,6 +165,10 @@ export interface DeckFileMeta {
   durationSec: number;
   /** Picos V8 do backend; se ausente, o engine calcula do buffer. */
   peaks?: Float32Array | null;
+  /** Bandas V10 para waveform colorida; se ausente, usa picos mono. */
+  waveformV10?: WaveformV10Bands | null;
+  /** Grid de batida da análise remota, quando o MusicDiscover devolveu BPM e cues. */
+  beatGrid?: BeatGrid | null;
 }
 
 export interface MixerSnapshot {
@@ -109,14 +191,12 @@ export interface MixerSnapshot {
  * Duas famílias convivem aqui. As ações com `value` são **absolutas** e servem
  * a quem já conhece o estado de destino, como um slider da tela. As ações sem
  * `value`, a saber `toggle`, `toggleSync`, `toggleCueMonitor`, `toggleLoop`,
- * `cuePress` e `cueRelease`, são de **intenção**: elas descrevem o gesto e deixam o
+ * `cuePress`, `cueRelease`, `toggleSlip`, `toggleKeyLock` e `toggleKeySync`, são de **intenção**: elas descrevem o gesto e deixam o
  * dispatcher ler o snapshot, porque um botão MIDI manda press e nada mais.
  *
- * As três ações de browser são intenção por um motivo diferente dos toggles.
- * Elas não dependem do snapshot: `browseMove` mexe no cursor da playlist ativa,
- * `browseHome` alterna qual deck recebe o encoder BROWSE, e `browseLoad` abre o
- * seletor de arquivo no modo local, ou carrega o stream remoto quando a fonte do
- * browse é a API.
+ * As ações de browser são intenção por um motivo diferente dos toggles.
+ * Elas não dependem do snapshot: `browseMove` mexe no cursor da collection
+ * compartilhada, e `browseLoad` carrega a faixa do cursor no deck do botão MIDI.
  *
  * Union aberto: um `type` novo exige case em `applyAbsoluteAction` ou
  * `resolveMixerAction`, e uma linha em `MIXER_ACTION_ROUTES` (ver
@@ -143,7 +223,17 @@ export type MixerAction =
   | { type: "toggleCueMonitor"; id: DeckId }
   | { type: "jogMode"; id: DeckId; value: JogMode }
   | { type: "quantize"; id: DeckId; value: boolean }
-  | { type: "loadTrack"; id: DeckId; trackId: string }
+  | { type: "slip"; id: DeckId; value: boolean }
+  | { type: "toggleSlip"; id: DeckId }
+  | { type: "keyLock"; id: DeckId; value: boolean }
+  | { type: "toggleKeyLock"; id: DeckId }
+  | { type: "keySync"; id: DeckId; value: boolean }
+  | { type: "toggleKeySync"; id: DeckId }
+  | { type: "nudgeKeyShift"; id: DeckId; direction: -1 | 1 }
+  | { type: "loopMode"; id: DeckId; value: LoopMode }
+  | { type: "loopLengthPress"; id: DeckId }
+  | { type: "hotCuePadPress"; id: DeckId; slot: number }
+  | { type: "hotCuePadRelease"; id: DeckId; slot: number }
   | { type: "callCue"; id: DeckId }
   | { type: "setCue"; id: DeckId }
   | { type: "cuePress"; id: DeckId }
@@ -166,7 +256,6 @@ export type MixerAction =
   | { type: "nudge"; id: DeckId; direction: -1 | 1 }
   | { type: "browseMove"; delta: number }
   | { type: "browseLoad"; id: DeckId }
-  | { type: "browseHome" }
   | { type: "requestDeckLoad"; id: DeckId; source?: "file" | "library" }
   | { type: "loadDeckFile"; id: DeckId; file: File }
   | { type: "loadRemoteTrack"; id: DeckId; trackId: string }

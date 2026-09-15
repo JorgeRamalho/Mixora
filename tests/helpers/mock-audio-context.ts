@@ -23,8 +23,16 @@ export class MockAudioNode {
     return dest;
   }
 
-  /** Solta as ligações, usado ao parar o `BufferSource`. */
-  disconnect(): void {
+  /**
+   * Solta ligações do nó. Com destino, remove só aquele fio, como na Web Audio API.
+   *
+   * @param dest Nó de destino a desconectar, ou omitido para limpar tudo.
+   */
+  disconnect(dest?: MockAudioNode): void {
+    if (dest) {
+      this.connections = this.connections.filter((node) => node !== dest);
+      return;
+    }
     this.connections = [];
   }
 }
@@ -110,12 +118,24 @@ export class MockBufferSource extends MockAudioNode {
   }
 }
 
+export class MockMediaStreamDestination extends MockAudioNode {
+  readonly stream = { id: "mock-cue-stream", getAudioTracks: () => [] };
+  channelCount = 2;
+}
+
+/** Source de `MediaStream` usado no contexto separado do bus de cue. */
+export class MockMediaStreamSource extends MockAudioNode {}
+
 export class MockAudioContext {
   currentTime = 0;
   sampleRate = 44100;
   destination = new MockAudioNode();
   state: AudioContextState = "running";
   sources: MockBufferSource[] = [];
+  sinkId = "";
+  setSinkId = async (deviceId: string | { type: "none" }): Promise<void> => {
+    this.sinkId = typeof deviceId === "string" ? deviceId : "none";
+  };
 
   /**
    * Cria um gain, usado em master, crossfader e canal.
@@ -132,6 +152,20 @@ export class MockAudioContext {
   /** Cria o analyser do deck, que a waveform consulta. */
   createAnalyser(): MockAnalyserNode {
     return new MockAnalyserNode();
+  }
+
+  /** Destino de `MediaStream` usado no fallback legado do bus de cue. */
+  createMediaStreamDestination(): MockMediaStreamDestination {
+    return new MockMediaStreamDestination();
+  }
+
+  /**
+   * Source que lê o stream do bus de cue no contexto de fone.
+   *
+   * @param _stream Stream gerado por `createMediaStreamDestination`.
+   */
+  createMediaStreamSource(_stream: { id: string }): MockMediaStreamSource {
+    return new MockMediaStreamSource();
   }
 
   /**

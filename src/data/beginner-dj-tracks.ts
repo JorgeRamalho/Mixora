@@ -3,12 +3,11 @@ import type { PlatformId } from "../types/platform";
 /** Faixas essenciais para DJ iniciante — fáceis de mixar, BPM estável e reconhecíveis. */
 export const BEGINNER_DJ_QUERIES: Partial<Record<PlatformId, string[]>> = {
   spotify: [
-    "avicii levels",
     "daft punk one more time",
     "calvin harris summer",
     "disclosure latch",
-    "avicii wake me up",
     "dua lipa levitating",
+    "eric prydz pjanoo",
   ],
   deezer: [
     "david guetta titanium",

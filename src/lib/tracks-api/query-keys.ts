@@ -7,21 +7,55 @@
 export function trackListKey(
   source: string,
   filters: {
-    q?: string;
+    collectionMode?: string | null;
+    artist?: string | null;
+    track?: string | null;
+    release?: string | null;
+    label?: string | null;
     sort?: string;
     camelot?: string | null;
     camelotMode?: string;
+    genre?: string | null;
+    subgenre?: string | null;
+    bpmMin?: number | null;
+    bpmMax?: number | null;
   } = {},
 ): readonly unknown[] {
   return [
     "tracks",
     "list",
     source,
-    filters.q ?? "",
+    filters.collectionMode ?? "",
+    filters.artist ?? "",
+    filters.track ?? "",
+    filters.release ?? "",
+    filters.label ?? "",
     filters.sort ?? "title",
     filters.camelot ?? "",
     filters.camelotMode ?? "exact",
+    filters.genre ?? "",
+    filters.subgenre ?? "",
+    filters.bpmMin ?? "",
+    filters.bpmMax ?? "",
   ];
+}
+
+/**
+ * Chave da taxonomia de gêneros.
+ *
+ * @param query Busca opcional por substring.
+ */
+export function genreListKey(query = ""): readonly unknown[] {
+  return ["tracks", "genres", query];
+}
+
+/**
+ * Chave dos subgêneros de um pai.
+ *
+ * @param genreId Id Beatport do gênero.
+ */
+export function subgenreListKey(genreId: number): readonly unknown[] {
+  return ["tracks", "genres", genreId, "subgenres"];
 }
 
 /**

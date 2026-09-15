@@ -3,10 +3,8 @@ const REDUCE_MOTION = "(prefers-reduced-motion: reduce)";
 const MIXER_STAGE = ".mixer-stage";
 const SURFACE =
   ".card:not(.dj-portal), .plan-card, .form-section, .video-frame, .radio-eq-chassis, .radio-catalog-import, .mixer-stage";
-/** Suavização do tilt do palco do mixer (0–1, menor = mais lento). */
-const MIXER_TILT_LERP = 0.055;
-/** Limite de variação do alvo por frame, em graus. */
-const MIXER_TARGET_STEP = 0.12;
+/** Suavização do glint do palco do mixer (0–1, menor = mais lento). */
+const MIXER_GLINT_LERP = 0.055;
 
 function isMixerStage(el: HTMLElement): boolean {
   return el.classList.contains("mixer-stage");
@@ -38,19 +36,6 @@ function softenPointerAxis(value: number): number {
   return softened * 0.5;
 }
 
-/**
- * Limita a variação do alvo de tilt entre frames.
- *
- * @param current Valor suavizado atual.
- * @param next Valor desejado pelo ponteiro.
- * @param step Teto de delta por frame.
- */
-function stepToward(current: number, next: number, step: number): number {
-  const delta = next - current;
-  if (Math.abs(delta) <= step) return next;
-  return current + Math.sign(delta) * step;
-}
-
 function resolveSurface(path: EventTarget[]): HTMLElement | null {
   for (const node of path) {
     if (!(node instanceof Element)) continue;
@@ -71,7 +56,7 @@ function pathIncludesMixer(path: EventTarget[]): boolean {
   return path.some((node) => node instanceof Element && node.matches(MIXER_STAGE));
 }
 
-/** Luz ambiente no palco + tilt 3D nas superfícies da cabine. */
+/** Luz ambiente no palco; tilt 3D só fora da cabine CDJ. */
 export function bindStageLight(root: HTMLElement = document.documentElement): () => void {
   const reduce = window.matchMedia(REDUCE_MOTION);
   const fine = window.matchMedia(FINE_POINTER);
@@ -83,12 +68,6 @@ export function bindStageLight(root: HTMLElement = document.documentElement): ()
   let ty = 0.1;
   let active: HTMLElement | null = null;
   let mixerStageEl: HTMLElement | null = null;
-  let desiredTiltX = 0;
-  let desiredTiltY = 0;
-  let targetTiltX = 0;
-  let targetTiltY = 0;
-  let smoothTiltX = 0;
-  let smoothTiltY = 0;
   let targetGlintX = 50;
   let targetGlintY = 50;
   let smoothGlintX = 50;
@@ -100,26 +79,37 @@ export function bindStageLight(root: HTMLElement = document.documentElement): ()
     root.style.setProperty("--pointer-x", `${(px * 100).toFixed(2)}%`);
     root.style.setProperty("--pointer-y", `${(py * 100).toFixed(2)}%`);
 
+    let glintSettled = true;
     if (mixerStageEl) {
-      targetTiltX = stepToward(targetTiltX, desiredTiltX, MIXER_TARGET_STEP);
-      targetTiltY = stepToward(targetTiltY, desiredTiltY, MIXER_TARGET_STEP);
-      smoothTiltX += (targetTiltX - smoothTiltX) * MIXER_TILT_LERP;
-      smoothTiltY += (targetTiltY - smoothTiltY) * MIXER_TILT_LERP;
-      smoothGlintX += (targetGlintX - smoothGlintX) * MIXER_TILT_LERP;
-      smoothGlintY += (targetGlintY - smoothGlintY) * MIXER_TILT_LERP;
-      mixerStageEl.style.setProperty("--tilt-x", `${smoothTiltX.toFixed(2)}deg`);
-      mixerStageEl.style.setProperty("--tilt-y", `${smoothTiltY.toFixed(2)}deg`);
+      smoothGlintX += (targetGlintX - smoothGlintX) * MIXER_GLINT_LERP;
+      smoothGlintY += (targetGlintY - smoothGlintY) * MIXER_GLINT_LERP;
       mixerStageEl.style.setProperty("--glint-x", `${smoothGlintX.toFixed(1)}%`);
       mixerStageEl.style.setProperty("--glint-y", `${smoothGlintY.toFixed(1)}%`);
+      glintSettled =
+        Math.abs(targetGlintX - smoothGlintX) < 0.05 &&
+        Math.abs(targetGlintY - smoothGlintY) < 0.05;
+    }
+
+    const pointerSettled = Math.abs(tx - px) < 0.0004 && Math.abs(ty - py) < 0.0004;
+    if (pointerSettled && glintSettled) {
+      frame = 0;
+      return;
     }
 
     frame = requestAnimationFrame(tick);
+  };
+
+  const wakeAnimation = () => {
+    if (frame === 0 && !reduce.matches) {
+      frame = requestAnimationFrame(tick);
+    }
   };
 
   const onMove = (event: PointerEvent) => {
     if (reduce.matches || !fine.matches) return;
     tx = event.clientX / Math.max(1, window.innerWidth);
     ty = event.clientY / Math.max(1, window.innerHeight);
+    wakeAnimation();
 
     const path = event.composedPath();
     const insideMixer = pathIncludesMixer(path);
@@ -133,11 +123,8 @@ export function bindStageLight(root: HTMLElement = document.documentElement): ()
       const ly = softenPointerAxis(
         (event.clientY - rect.top) / Math.max(1, rect.height) - 0.5,
       );
-      const amount = intensityFor(hit);
 
       mixerStageEl = hit;
-      desiredTiltX = -ly * amount;
-      desiredTiltY = lx * amount;
       targetGlintX = (lx + 0.5) * 100;
       targetGlintY = (ly + 0.5) * 100;
 
@@ -154,18 +141,11 @@ export function bindStageLight(root: HTMLElement = document.documentElement): ()
       const ly = softenPointerAxis(
         (event.clientY - rect.top) / Math.max(1, rect.height) - 0.5,
       );
-      const amount = intensityFor(mixerStageEl);
-
-      desiredTiltX = -ly * amount;
-      desiredTiltY = lx * amount;
       targetGlintX = (lx + 0.5) * 100;
       targetGlintY = (ly + 0.5) * 100;
       active = mixerStageEl;
       return;
     }
-
-    desiredTiltX = 0;
-    desiredTiltY = 0;
 
     if (hit instanceof HTMLElement) {
       const rect = hit.getBoundingClientRect();
@@ -187,8 +167,6 @@ export function bindStageLight(root: HTMLElement = document.documentElement): ()
   };
 
   const onLeave = () => {
-    desiredTiltX = 0;
-    desiredTiltY = 0;
     if (active && !isMixerStage(active)) clearTilt(active);
     active = null;
   };

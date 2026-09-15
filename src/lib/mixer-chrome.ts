@@ -1,20 +1,19 @@
-import type { BrowseChipTrack } from "../components/mixer/BrowseChip";
 import type { MidiLatency } from "./midi/use-midi-controller";
 import type { MidiLinkStatus } from "./midi/midi-session";
-import type { BrowseSource, DeckId } from "../types/mixer";
+import type { CueAudioRoutingStatus } from "./cue-audio-routing";
+import { DEFAULT_WAVEFORM_ACCENT } from "./waveform-palette";
 
-/** Estado de leitura do chrome global do mixer, para header e status bar. */
+/** Paleta Camelot espelhada no chrome, para o header e o fundo da rota. */
+export interface MixerChromeCamelot {
+  a: string;
+  b: string;
+  live: string;
+  playing: boolean;
+}
+
+/** Estado de leitura do chrome global do mixer, para o header. */
 export interface MixerChromeSnapshot {
   mounted: boolean;
-  browseSource: BrowseSource;
-  browseTrack: BrowseChipTrack | null;
-  browsePosition: number;
-  browseTotal: number;
-  browseLoading: boolean;
-  activeDeck: DeckId;
-  pendingLoad: DeckId | null;
-  libraryError: boolean;
-  cabinetHeadHidden: boolean;
   midi: {
     status: MidiLinkStatus;
     deviceName: string | null;
@@ -24,13 +23,20 @@ export interface MixerChromeSnapshot {
     live: boolean;
     latency: MidiLatency | null;
   };
+  camelot: MixerChromeCamelot;
+  cueAudio: {
+    status: CueAudioRoutingStatus;
+    deviceLabel: string | null;
+    detail: string | null;
+    canChooseOutput: boolean;
+  };
 }
 
 /** Ações que só o `MixerBoard` montado pode executar. */
 export interface MixerChromeActions {
-  changeBrowseSource: (source: BrowseSource) => void;
   connectMidi: () => void;
-  toggleCabinetHead: () => void;
+  chooseCueOutput: () => void;
+  retryCueOutput: () => void;
 }
 
 type MixerChromeListener = () => void;
@@ -47,24 +53,31 @@ const EMPTY_MIDI: MixerChromeSnapshot["midi"] = {
   latency: null,
 };
 
+const EMPTY_CAMELOT: MixerChromeCamelot = {
+  a: DEFAULT_WAVEFORM_ACCENT,
+  b: DEFAULT_WAVEFORM_ACCENT,
+  live: DEFAULT_WAVEFORM_ACCENT,
+  playing: false,
+};
+
+const EMPTY_CUE_AUDIO: MixerChromeSnapshot["cueAudio"] = {
+  status: "default",
+  deviceLabel: null,
+  detail: null,
+  canChooseOutput: false,
+};
+
 let snapshot: MixerChromeSnapshot = {
   mounted: false,
-  browseSource: "local",
-  browseTrack: null,
-  browsePosition: 1,
-  browseTotal: 0,
-  browseLoading: false,
-  activeDeck: "a",
-  pendingLoad: null,
-  libraryError: false,
-  cabinetHeadHidden: false,
   midi: { ...EMPTY_MIDI },
+  camelot: { ...EMPTY_CAMELOT },
+  cueAudio: { ...EMPTY_CUE_AUDIO },
 };
 
 let actions: MixerChromeActions | null = null;
 
 /**
- * Snapshot atual do chrome do mixer, para o header e a status bar.
+ * Snapshot atual do chrome do mixer, para o header.
  */
 export function getMixerChromeSnapshot(): MixerChromeSnapshot {
   return snapshot;
@@ -90,16 +103,9 @@ export function subscribeMixerChrome(listener: MixerChromeListener): () => void 
 export function updateMixerChrome(patch: Partial<MixerChromeSnapshot>): void {
   snapshot = {
     mounted: patch.mounted ?? snapshot.mounted,
-    browseSource: patch.browseSource ?? snapshot.browseSource,
-    browseTrack: patch.browseTrack !== undefined ? patch.browseTrack : snapshot.browseTrack,
-    browsePosition: patch.browsePosition ?? snapshot.browsePosition,
-    browseTotal: patch.browseTotal ?? snapshot.browseTotal,
-    browseLoading: patch.browseLoading ?? snapshot.browseLoading,
-    activeDeck: patch.activeDeck ?? snapshot.activeDeck,
-    pendingLoad: patch.pendingLoad !== undefined ? patch.pendingLoad : snapshot.pendingLoad,
-    libraryError: patch.libraryError ?? snapshot.libraryError,
-    cabinetHeadHidden: patch.cabinetHeadHidden ?? snapshot.cabinetHeadHidden,
     midi: patch.midi ?? snapshot.midi,
+    camelot: patch.camelot ?? snapshot.camelot,
+    cueAudio: patch.cueAudio ?? snapshot.cueAudio,
   };
   for (const listener of listeners) listener();
 }
@@ -126,16 +132,9 @@ export function getMixerChromeActions(): MixerChromeActions | null {
 export function resetMixerChrome(): void {
   snapshot = {
     mounted: false,
-    browseSource: "local",
-    browseTrack: null,
-    browsePosition: 1,
-    browseTotal: 0,
-    browseLoading: false,
-    activeDeck: "a",
-    pendingLoad: null,
-    libraryError: false,
-    cabinetHeadHidden: false,
     midi: { ...EMPTY_MIDI },
+    camelot: { ...EMPTY_CAMELOT },
+    cueAudio: { ...EMPTY_CUE_AUDIO },
   };
   actions = null;
   for (const listener of listeners) listener();

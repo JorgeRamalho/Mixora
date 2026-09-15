@@ -86,6 +86,14 @@ export default defineConfig({
         target: process.env.VITE_TRACKS_API_BASE ?? "http://127.0.0.1:8765",
         changeOrigin: true,
       },
+      "/api/catalog": {
+        target: process.env.VITE_TRACKS_API_BASE ?? "http://127.0.0.1:8765",
+        changeOrigin: true,
+      },
+      "/api/genres": {
+        target: process.env.VITE_TRACKS_API_BASE ?? "http://127.0.0.1:8765",
+        changeOrigin: true,
+      },
     },
   },
   preview: {

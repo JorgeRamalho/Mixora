@@ -37,7 +37,7 @@ test.describe("sessão MIDI da cabine", () => {
     await expect(page.getByRole("region", { name: "Mixer central" })).toBeVisible();
 
     // O mouse não pode depender da sessão MIDI para funcionar.
-    await page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Play" }).click();
+    await page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Play", exact: true }).click();
     await expect(
       page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Pause" }),
     ).toBeVisible();

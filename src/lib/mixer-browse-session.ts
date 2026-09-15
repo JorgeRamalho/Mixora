@@ -1,26 +1,44 @@
+import type { RemoteCollectionMode } from "../types/mixer";
+import {
+  areCollectionColumnFiltersEqual,
+  cloneCollectionColumnFilters,
+  EMPTY_COLLECTION_COLUMN_FILTERS,
+  type CollectionColumnFilters,
+} from "./collection-column-filters";
 import type { CamelotFilterMode } from "./tracks-api/types";
-import type { DeckId } from "../types/mixer";
-import { EMPTY_DECK_KEY_FILTERS, type DeckKeyFilters } from "./mixer-browse";
 
 /** Estado de UI do browse que deve sobreviver à navegação entre rotas. */
 export interface BrowseSessionSnapshot {
-  cursorByDeck: Record<DeckId, number>;
-  browseKeyFilterByDeck: DeckKeyFilters;
+  cursor: number;
+  /** Biblioteca por padrão no CDJ virtual; null esconde a taxonomia de gênero. */
+  collectionMode: RemoteCollectionMode | null;
+  genreFilter: string | null;
+  genreId: number | null;
+  subgenreFilter: string | null;
+  q: string;
+  /** Recorte AND digitado sob o header da collection. */
+  columnFilters: CollectionColumnFilters;
+  browseKeyFilter: string | null;
   browseCamelotMode: CamelotFilterMode;
-  /** Deck cuja playlist o encoder BROWSE da DDJ-400 navega no momento. */
-  browseActiveDeck: DeckId;
 }
 
 type BrowseSessionListener = () => void;
 
 const listeners = new Set<BrowseSessionListener>();
 
-let snapshot: BrowseSessionSnapshot = {
-  cursorByDeck: { a: 0, b: 0 },
-  browseKeyFilterByDeck: { ...EMPTY_DECK_KEY_FILTERS },
+const EMPTY_SESSION: BrowseSessionSnapshot = {
+  cursor: 0,
+  collectionMode: "library",
+  genreFilter: null,
+  genreId: null,
+  subgenreFilter: null,
+  q: "",
+  columnFilters: cloneCollectionColumnFilters(),
+  browseKeyFilter: null,
   browseCamelotMode: "compatible",
-  browseActiveDeck: "a",
 };
+
+let snapshot: BrowseSessionSnapshot = { ...EMPTY_SESSION };
 
 /**
  * Snapshot atual da sessão de browse, para hidratar o MixerBoard sem perder
@@ -49,59 +67,74 @@ export function subscribeBrowseSession(listener: BrowseSessionListener): () => v
  */
 export function updateBrowseSession(patch: Partial<BrowseSessionSnapshot>): void {
   snapshot = {
-    cursorByDeck: patch.cursorByDeck ?? snapshot.cursorByDeck,
-    browseKeyFilterByDeck: patch.browseKeyFilterByDeck ?? snapshot.browseKeyFilterByDeck,
+    cursor: patch.cursor ?? snapshot.cursor,
+    collectionMode:
+      patch.collectionMode !== undefined ? patch.collectionMode : snapshot.collectionMode,
+    genreFilter: patch.genreFilter !== undefined ? patch.genreFilter : snapshot.genreFilter,
+    genreId: patch.genreId !== undefined ? patch.genreId : snapshot.genreId,
+    subgenreFilter: patch.subgenreFilter !== undefined ? patch.subgenreFilter : snapshot.subgenreFilter,
+    q: patch.q ?? snapshot.q,
+    columnFilters:
+      patch.columnFilters !== undefined
+        ? cloneCollectionColumnFilters(patch.columnFilters)
+        : snapshot.columnFilters,
+    browseKeyFilter: patch.browseKeyFilter !== undefined ? patch.browseKeyFilter : snapshot.browseKeyFilter,
     browseCamelotMode: patch.browseCamelotMode ?? snapshot.browseCamelotMode,
-    browseActiveDeck: patch.browseActiveDeck ?? snapshot.browseActiveDeck,
   };
   for (const listener of listeners) listener();
 }
 
 /**
- * Grava o cursor de um deck na sessão de browse.
+ * Grava o cursor compartilhado da collection.
  *
- * @param deckId Lado da cabine.
  * @param index Posição na lista filtrada.
  */
-export function setBrowseCursor(deckId: DeckId, index: number): void {
-  updateBrowseSession({
-    cursorByDeck: { ...snapshot.cursorByDeck, [deckId]: index },
-  });
+export function setBrowseCursor(index: number): void {
+  updateBrowseSession({ cursor: index });
 }
 
 /**
- * Define qual deck recebe o encoder BROWSE da DDJ-400.
- *
- * @param deckId Lado da cabine que passa a ser o alvo do browse.
- */
-export function setBrowseActiveDeck(deckId: DeckId): void {
-  updateBrowseSession({ browseActiveDeck: deckId });
-}
-
-/**
- * Zera cursor e filtros ao trocar a fonte USB/API, como no fluxo original.
+ * Zera cursor e filtros ao trocar a fonte USB/API.
  */
 export function resetBrowseSessionForSourceChange(): void {
+  snapshot = {
+    ...EMPTY_SESSION,
+    columnFilters: cloneCollectionColumnFilters(),
+  };
+  for (const listener of listeners) listener();
+}
+
+/**
+ * Grava o recorte das colunas e zera o cursor da lista filtrada.
+ *
+ * @param filters Texto digitado em Artista, Faixa, Álbum, BPM, Camelot e Label.
+ */
+export function setCollectionColumnFilters(filters: CollectionColumnFilters): void {
+  if (areCollectionColumnFiltersEqual(snapshot.columnFilters, filters)) {
+    return;
+  }
   updateBrowseSession({
-    cursorByDeck: { a: 0, b: 0 },
-    browseKeyFilterByDeck: { ...EMPTY_DECK_KEY_FILTERS },
-    browseCamelotMode: "compatible",
-    browseActiveDeck: "a",
+    columnFilters: filters,
+    cursor: 0,
   });
 }
 
 /**
  * Hidrata a sessão na primeira montagem quando ainda está nos defaults.
  *
- * @param cursorByDeck Cursor calculado a partir da faixa carregada no engine.
+ * @param cursor Cursor calculado a partir da faixa carregada no engine.
  */
-export function seedBrowseSessionIfPristine(cursorByDeck: Record<DeckId, number>): void {
+export function seedBrowseSessionIfPristine(cursor: number): void {
   const pristine =
-    snapshot.cursorByDeck.a === 0 &&
-    snapshot.cursorByDeck.b === 0 &&
-    snapshot.browseKeyFilterByDeck.a === null &&
-    snapshot.browseKeyFilterByDeck.b === null &&
+    snapshot.cursor === 0 &&
+    snapshot.collectionMode === "library" &&
+    snapshot.genreFilter === null &&
+    snapshot.genreId === null &&
+    snapshot.subgenreFilter === null &&
+    snapshot.q === "" &&
+    areCollectionColumnFiltersEqual(snapshot.columnFilters, EMPTY_COLLECTION_COLUMN_FILTERS) &&
+    snapshot.browseKeyFilter === null &&
     snapshot.browseCamelotMode === "compatible";
   if (!pristine) return;
-  updateBrowseSession({ cursorByDeck });
+  updateBrowseSession({ cursor });
 }

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { crossfaderSliderStyle } from "../../lib/range-slider-style";
-import { getCamelotKey } from "../../lib/musical-key";
+import { mixerStagePaletteCssVars, resolveMixerStagePalette } from "../../lib/mixer-stage-palette";
 import type { DeckId, MixerAction, MixerSnapshot } from "../../types/mixer";
 import { RotaryKnob } from "./RotaryKnob";
 import { formatKnobPercent } from "./rotary-knob-scale";
@@ -8,7 +8,7 @@ import { VolumeKnob } from "./VolumeKnob";
 
 const EQ_BANDS = [
   { id: "high", label: "HIGH" },
-  { id: "mid", label: "MED" },
+  { id: "mid", label: "MID" },
   { id: "low", label: "LOW" },
 ] as const;
 
@@ -16,6 +16,15 @@ const EQ_MIN = -24;
 const EQ_MAX = 12;
 const EQ_STEP = 1;
 
+/**
+ * Knob de uma banda do EQ do canal, com rótulo curto no estilo Rekordbox.
+ *
+ * @param deckId Canal A ou B.
+ * @param band Identificador high, mid ou low no snapshot.
+ * @param label Texto visível HIGH, MID ou LOW.
+ * @param value Ganho atual da banda em dB.
+ * @param onChange Despacha a ação de EQ.
+ */
 function EqBand({
   deckId,
   band,
@@ -52,7 +61,14 @@ function EqBand({
   );
 }
 
-function ChannelEq({
+/**
+ * Tira de um canal no mixer central, com TRIM, EQ, FILTER, CUE e fader.
+ *
+ * @param deckId Canal A ou B.
+ * @param snap Snapshot atual da cabine.
+ * @param onChange Despacha ações de trim, EQ, filter, cue e ganho.
+ */
+function ChannelStrip({
   deckId,
   snap,
   onChange,
@@ -66,8 +82,7 @@ function ChannelEq({
 
   return (
     <div className="mixer-eq-channel" data-channel={deckId}>
-      <p className="mixer-eq-channel-label">CH {channel}</p>
-      <div className="mixer-channel-pre">
+      <div className="mixer-eq-channel-knobs">
         <RotaryKnob
           label="TRIM"
           value={deck.trim}
@@ -79,38 +94,89 @@ function ChannelEq({
           formatValue={(next) => formatKnobPercent(next, 0.2, 1)}
           onChange={(value) => onChange({ type: "trim", id: deckId, value })}
         />
-      </div>
-      {EQ_BANDS.map((item) => (
-        <EqBand
-          key={item.id}
-          deckId={deckId}
-          band={item.id}
-          label={item.label}
-          value={deck.eq[item.id]}
-          onChange={onChange}
-        />
-      ))}
-      <div className="mixer-eq-band mixer-eq-filter">
-        <p className="mixer-eq-band-label">FILTER</p>
-        <div className="mixer-eq-band-row mixer-eq-band-row--solo">
-          <RotaryKnob
-            hideLabel
-            label="FILTER"
-            value={deck.filter}
-            min={-100}
-            max={100}
-            step={1}
-            ariaLabel={`Filter deck ${channel}`}
-            toneClass="mixer-vol-knob--filter"
-            formatValue={(next) => formatKnobPercent(next, -100, 100)}
-            onChange={(value) => onChange({ type: "filter", id: deckId, value })}
+        {EQ_BANDS.map((item) => (
+          <EqBand
+            key={item.id}
+            deckId={deckId}
+            band={item.id}
+            label={item.label}
+            value={deck.eq[item.id]}
+            onChange={onChange}
           />
+        ))}
+        <div className="mixer-eq-band mixer-eq-filter">
+          <p className="mixer-eq-band-label">FILTER</p>
+          <div className="mixer-eq-band-row mixer-eq-band-row--solo">
+            <RotaryKnob
+              hideLabel
+              label="FILTER"
+              value={deck.filter}
+              min={-100}
+              max={100}
+              step={1}
+              ariaLabel={`Filter deck ${channel}`}
+              toneClass="mixer-vol-knob--filter"
+              formatValue={(next) => formatKnobPercent(next, -100, 100)}
+              onChange={(value) => onChange({ type: "filter", id: deckId, value })}
+            />
+          </div>
         </div>
       </div>
+      <button
+        type="button"
+        className={`mixer-pfl${deck.cueMonitor ? " is-on" : ""}`}
+        aria-pressed={deck.cueMonitor}
+        aria-label={`Cue monitor deck ${channel}`}
+        onClick={() => onChange({ type: "toggleCueMonitor", id: deckId })}
+      >
+        CUE
+      </button>
     </div>
   );
 }
 
+/**
+ * Fader vertical de um canal, no mesmo molde Rekordbox da tira.
+ *
+ * @param deckId Canal A ou B.
+ * @param value Ganho do canal, de 0 a 1.
+ * @param onChange Despacha o novo ganho.
+ */
+function ChannelFader({
+  deckId,
+  value,
+  onChange,
+}: {
+  deckId: DeckId;
+  value: number;
+  onChange: (action: MixerAction) => void;
+}) {
+  const channel = deckId.toUpperCase();
+  return (
+    <label className="mixer-fader" data-deck={deckId}>
+      <span className="visually-hidden">Volume canal {channel}</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step="any"
+        value={value}
+        style={crossfaderSliderStyle(value)}
+        aria-label={`Volume deck ${channel}`}
+        onChange={(event) =>
+          onChange({ type: "gain", id: deckId, value: Number(event.currentTarget.value) })
+        }
+      />
+    </label>
+  );
+}
+
+/**
+ * Mixer central compacto no molde Rekordbox, com tiras de canal, MIX/LEVEL e crossfader.
+ *
+ * @param snap Snapshot da cabine.
+ * @param onChange Despacha trim, EQ, filter, cue, ganho, fone e crossfader.
+ */
 export function MixerConsole({
   snap,
   onChange,
@@ -118,116 +184,33 @@ export function MixerConsole({
   snap: MixerSnapshot;
   onChange: (action: MixerAction) => void;
 }) {
-  const camelotA = getCamelotKey(snap.a.track.key)?.color ?? "#8b8fa8";
-  const camelotB = getCamelotKey(snap.b.track.key)?.color ?? "#8b8fa8";
-  const consoleStyle = {
-    "--camelot-a": camelotA,
-    "--camelot-b": camelotB,
-  } as CSSProperties;
+  const consoleStyle = mixerStagePaletteCssVars(
+    resolveMixerStagePalette({
+      keyA: snap.a.track.key,
+      keyB: snap.b.track.key,
+      playingA: snap.a.playing,
+      playingB: snap.b.playing,
+      crossfader: snap.crossfader,
+    }),
+  ) as CSSProperties;
 
   return (
     <section className="mixer-console" style={consoleStyle} aria-label="Mixer central">
-      <header className="mixer-console-head">
-        <p className="kicker">Mamute · DJM-V10</p>
-        <h2 className="mixer-console-title">Mixer &amp; EQ</h2>
-      </header>
-
-      <div className="mixer-monitor-knobs mixer-monitor-knobs--hero" role="group" aria-label="Master, booth e cue mix">
-        <p className="mixer-monitor-knobs-label">OUTPUT · MONITOR</p>
-        <VolumeKnob
-          label="MASTER"
-          tone="master"
-          value={snap.master}
-          ariaLabel="Volume master"
-          onChange={(value) => onChange({ type: "master", value })}
-        />
-        <VolumeKnob
-          label="BOOTH"
-          tone="booth"
-          value={snap.booth}
-          ariaLabel="Volume booth"
-          onChange={(value) => onChange({ type: "booth", value })}
-        />
-        <VolumeKnob
-          label="CUE MIX"
-          tone="cue"
-          value={snap.cueMix}
-          ariaLabel="Cue mix headphone digital"
-          onChange={(value) => onChange({ type: "cueMix", value })}
-        />
-        <button
-          type="button"
-          className={`mixer-master-cue${snap.masterCue ? " is-on" : ""}`}
-          aria-pressed={snap.masterCue}
-          aria-label="Master cue no fone digital"
-          onClick={() => onChange({ type: "toggleMasterCue" })}
-        >
-          MASTER CUE
-        </button>
-      </div>
-
       <div className="mixer-eq-rack" role="group" aria-label="Equalizador de 3 bandas">
-        <p className="mixer-eq-rack-label">EQ · HIGH / MED / LOW</p>
         <div className="mixer-eq-split">
-          <ChannelEq deckId="a" snap={snap} onChange={onChange} />
-          <ChannelEq deckId="b" snap={snap} onChange={onChange} />
+          <ChannelFader deckId="a" value={snap.a.gain} onChange={onChange} />
+          <ChannelStrip deckId="a" snap={snap} onChange={onChange} />
+          <ChannelStrip deckId="b" snap={snap} onChange={onChange} />
+          <ChannelFader deckId="b" value={snap.b.gain} onChange={onChange} />
         </div>
       </div>
 
       {/*
-        O PFL de canal nasceu com o transporte MIDI: o botão CUE da deck passou
-        a ser set e call do ponto de cue, como num CDJ, e por isso o monitor de
-        fone precisava de alvo próprio aqui, ao lado dos faders.
+        Os faders usam `step="any"` porque recebem 14 bits da DDJ-400, e um step
+        numérico alinharia o valor ao múltiplo do browser. Os faders ficam nas
+        extremidades e os knobs do EQ no centro. MIX, LEVEL e MASTER CUE ficam
+        abaixo do crossfader.
       */}
-      <div className="mixer-pfl-row" role="group" aria-label="Cue de canal">
-        {(["a", "b"] as const).map((deckId) => (
-          <button
-            key={deckId}
-            type="button"
-            className={`mixer-pfl${snap[deckId].cueMonitor ? " is-on" : ""}`}
-            aria-pressed={snap[deckId].cueMonitor}
-            aria-label={`Cue monitor deck ${deckId.toUpperCase()}`}
-            onClick={() => onChange({ type: "toggleCueMonitor", id: deckId })}
-          >
-            CUE {deckId.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/*
-        Os três faders usam `step="any"` porque eles recebem valor de 14 bits da
-        DDJ-400, e um step numérico faria o browser alinhar o valor ao múltiplo
-        mais próximo, jogando fora a resolução do par MSB/LSB. As setas do
-        teclado continuam andando 1% do curso, que é o passo padrão do range.
-      */}
-      <div className="mixer-faders">
-        <label className="mixer-fader" data-deck="a">
-          <span>CH A</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step="any"
-            value={snap.a.gain}
-            style={crossfaderSliderStyle(snap.a.gain)}
-            aria-label="Volume deck A"
-            onChange={(event) => onChange({ type: "gain", id: "a", value: Number(event.target.value) })}
-          />
-        </label>
-        <label className="mixer-fader" data-deck="b">
-          <span>CH B</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step="any"
-            value={snap.b.gain}
-            style={crossfaderSliderStyle(snap.b.gain)}
-            aria-label="Volume deck B"
-            onChange={(event) => onChange({ type: "gain", id: "b", value: Number(event.target.value) })}
-          />
-        </label>
-      </div>
 
       <div className="mixer-xf-block">
         <p className="mixer-xf-label">CROSSFADER</p>
@@ -241,12 +224,42 @@ export function MixerConsole({
           style={crossfaderSliderStyle(snap.crossfader)}
           data-xf={snap.crossfader}
           aria-label="Crossfader"
-          onChange={(event) => onChange({ type: "xf", value: Number(event.target.value) })}
+          onChange={(event) => onChange({ type: "xf", value: Number(event.currentTarget.value) })}
         />
         <div className="mixer-xf-curve" aria-hidden="true">
           <span>A</span>
           <span>B</span>
         </div>
+      </div>
+
+      <div
+        className="mixer-monitor-knobs mixer-monitor-knobs--hero"
+        role="group"
+        aria-label="Mix e level do fone"
+      >
+        <VolumeKnob
+          label="MIX"
+          tone="cue"
+          value={snap.cueMix}
+          ariaLabel="Cue mix headphone"
+          onChange={(value) => onChange({ type: "cueMix", value })}
+        />
+        <VolumeKnob
+          label="LEVEL"
+          tone="booth"
+          value={snap.booth}
+          ariaLabel="Level headphone"
+          onChange={(value) => onChange({ type: "booth", value })}
+        />
+        <button
+          type="button"
+          className={`mixer-master-cue${snap.masterCue ? " is-on" : ""}`}
+          aria-pressed={snap.masterCue}
+          aria-label="Master cue headphone"
+          onClick={() => onChange({ type: "toggleMasterCue" })}
+        >
+          MASTER CUE
+        </button>
       </div>
     </section>
   );

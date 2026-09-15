@@ -2,6 +2,15 @@ import { RotaryKnob } from "./RotaryKnob";
 
 export type VolumeKnobTone = "master" | "booth" | "cue";
 
+/**
+ * Knob de volume 0–1 usado no monitor do mixer, a saber MIX e LEVEL do fone.
+ *
+ * @param label Texto visível sob o dial.
+ * @param value Ganho normalizado.
+ * @param onChange Novo valor após o gesto.
+ * @param ariaLabel Nome acessível do slider.
+ * @param tone Classe visual master, booth ou cue.
+ */
 export function VolumeKnob({
   label,
   value,

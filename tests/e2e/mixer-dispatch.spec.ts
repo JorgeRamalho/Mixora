@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { TRAINING_TRACKS } from "../../src/data/training-tracks";
 import { createBrowseState, wrapCursor } from "../../src/lib/mixer-browse";
 import {
   applyAbsoluteAction,
@@ -9,7 +8,9 @@ import {
   type MixerEngine,
 } from "../../src/lib/mixer-dispatch";
 import { cloneMixerSnapshot, phaseToBeat } from "../../src/lib/mixer-snapshot";
-import type { DeckId, DeckState, MixerAction, MixerSnapshot, TrainingTrack } from "../../src/types/mixer";
+import type { DeckId, DeckState, MixerAction, MixerSnapshot, DeckTrack } from "../../src/types/mixer";
+import { BROWSE_FIXTURE_TRACKS } from "../helpers/deck-track-fixtures";
+import { EMPTY_DECK_TRACK } from "../../src/lib/deck-track";
 
 test.describe("dispatcher do mixer — intenção e browse", () => {
   test.beforeEach(({}, testInfo) => {
@@ -17,7 +18,7 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
   });
 
   test("wrapCursor dá a volta nas pontas da lista", () => {
-    const total = TRAINING_TRACKS.length;
+    const total = BROWSE_FIXTURE_TRACKS.length;
     expect(total).toBeGreaterThan(1);
     expect(wrapCursor(0, total)).toBe(0);
     expect(wrapCursor(total - 1, total)).toBe(total - 1);
@@ -30,14 +31,79 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const { eng } = createFakeEngine();
     const idle = createIdleBrowse();
 
-    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getBrowseActiveDeck, { type: "cuePress", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browse, { type: "cuePress", id: "a" })).toEqual({
       kind: "engine-cue-press",
       id: "a",
     });
-    expect(resolveMixerAction(eng, idle.browseByDeck, idle.getBrowseActiveDeck, { type: "cueRelease", id: "a" })).toEqual({
+    expect(resolveMixerAction(eng, idle.browse, { type: "cueRelease", id: "a" })).toEqual({
       kind: "engine-cue-release",
       id: "a",
     });
+  });
+
+  test("cuePress espelha LEDs na hora, antes do refresh", () => {
+    const { eng } = createFakeEngine();
+    const idle = createIdleBrowse();
+    const order: string[] = [];
+    const dispatch = createMixerDispatch({
+      eng: {
+        ...eng,
+        pressCue: (id) => {
+          order.push("pressCue");
+          eng.pressCue(id);
+        },
+      },
+      browse: idle.browse,
+      dispatchReducer: (action) => {
+        order.push(`reducer:${action.type}`);
+      },
+      syncLedsOnCue: () => {
+        order.push("syncLedsOnCue");
+      },
+    });
+
+    dispatch({ type: "cuePress", id: "a" });
+    expect(order).toEqual(["pressCue", "syncLedsOnCue", "reducer:refresh"]);
+  });
+
+  test("toggleCueMonitor espelha LEDs depois de gravar o PFL no snapshot", () => {
+    const { eng } = createFakeEngine();
+    const idle = createIdleBrowse();
+    const order: string[] = [];
+    const dispatch = createMixerDispatch({
+      eng,
+      browse: idle.browse,
+      dispatchReducer: (action) => {
+        order.push(`reducer:${action.type}`);
+        applyAbsoluteAction(eng, action);
+      },
+      syncLedsOnCue: () => {
+        order.push("syncLedsOnCue");
+      },
+    });
+
+    dispatch({ type: "toggleCueMonitor", id: "a" });
+    expect(order).toEqual(["reducer:cueMonitor", "syncLedsOnCue"]);
+  });
+
+  test("pitch não dispara o espelho imediato de LED do cue", () => {
+    const { eng } = createFakeEngine();
+    const idle = createIdleBrowse();
+    const order: string[] = [];
+    const dispatch = createMixerDispatch({
+      eng,
+      browse: idle.browse,
+      dispatchReducer: (action) => {
+        order.push(`reducer:${action.type}`);
+        applyAbsoluteAction(eng, action);
+      },
+      syncLedsOnCue: () => {
+        order.push("syncLedsOnCue");
+      },
+    });
+
+    dispatch({ type: "pitch", id: "a", value: 0.1 });
+    expect(order).toEqual(["reducer:pitch"]);
   });
 
   test("toggleSync inverte o sync absoluto uma vez", () => {
@@ -46,9 +112,7 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const received: MixerAction[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browseByDeck: idle.browseByDeck,
-      getBrowseActiveDeck: idle.getBrowseActiveDeck,
-      setBrowseActiveDeck: idle.setBrowseActiveDeck,
+      browse: idle.browse,
       dispatchReducer: (action) => {
         received.push(action);
         applyAbsoluteAction(eng, action);
@@ -70,9 +134,7 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const received: MixerAction[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browseByDeck: idle.browseByDeck,
-      getBrowseActiveDeck: idle.getBrowseActiveDeck,
-      setBrowseActiveDeck: idle.setBrowseActiveDeck,
+      browse: idle.browse,
       dispatchReducer: (action) => received.push(action),
     });
 
@@ -93,40 +155,14 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     expect(calls).toEqual(["toggleLoop", "toggleLoop"]);
   });
 
-  test("browseHome alterna o deck ativo do encoder BROWSE", () => {
-    let activeDeck: DeckId = "a";
+  test("browseLoad emite loadRemoteTrack com o cursor", () => {
     const { eng } = createFakeEngine();
     const idle = createIdleBrowse();
-    const dispatch = createMixerDispatch({
-      eng,
-      browseByDeck: idle.browseByDeck,
-      getBrowseActiveDeck: () => activeDeck,
-      setBrowseActiveDeck: (deckId) => {
-        activeDeck = deckId;
-      },
-      dispatchReducer: () => {
-        throw new Error("browse não pode tocar no reducer");
-      },
-    });
-
-    dispatch({ type: "browseHome" });
-    expect(activeDeck).toBe("b");
-
-    dispatch({ type: "browseHome" });
-    expect(activeDeck).toBe("a");
-  });
-
-  test("browseLoad arma o picker de arquivo do deck", () => {
-    const { eng } = createFakeEngine();
-    const idle = createIdleBrowse();
-    const ops: Array<{ kind: string; deckId?: string }> = [];
+    const ops: { kind: string; deckId?: string; trackId?: string }[] = [];
     const result = dispatchMixerAction(
       {
         eng,
-        browseByDeck: idle.browseByDeck,
-        getBrowseActiveDeck: idle.getBrowseActiveDeck,
-      setBrowseActiveDeck: idle.setBrowseActiveDeck,
-        setBrowseActiveDeck: idle.setBrowseActiveDeck,
+        browse: idle.browse,
         dispatchReducer: () => undefined,
         onUiOp: (op) => ops.push(op),
       },
@@ -134,42 +170,32 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     );
 
     expect(result).toEqual({ kind: "ui-only" });
-    expect(ops).toEqual([{ kind: "armFilePicker", deckId: "b" }]);
+    expect(ops).toEqual([
+      { kind: "loadRemoteTrack", deckId: "b", trackId: BROWSE_FIXTURE_TRACKS[0]!.id },
+    ]);
   });
 
   test("browseMove envolve o cursor nos extremos da lista", () => {
     const { eng } = createFakeEngine();
     let cursor = 0;
-    const browseByDeck = {
-      a: createBrowseState({
-        tracks: TRAINING_TRACKS,
-        getCursor: () => cursor,
-        setCursor: (index) => {
-          cursor = index;
-        },
-        snapshot: () => eng.snapshot,
-      }),
-      b: createBrowseState({
-        tracks: TRAINING_TRACKS,
-        getCursor: () => cursor,
-        setCursor: (index) => {
-          cursor = index;
-        },
-        snapshot: () => eng.snapshot,
-      }),
-    };
+    const browse = createBrowseState({
+      tracks: BROWSE_FIXTURE_TRACKS,
+      getCursor: () => cursor,
+      setCursor: (index) => {
+        cursor = index;
+      },
+      snapshot: () => eng.snapshot,
+    });
     const dispatch = createMixerDispatch({
       eng,
-      browseByDeck,
-      getBrowseActiveDeck: () => "a",
-      setBrowseActiveDeck: () => undefined,
+      browse,
       dispatchReducer: () => {
         throw new Error("browse não pode tocar no reducer");
       },
     });
 
     dispatch({ type: "browseMove", delta: -1 });
-    expect(cursor).toBe(TRAINING_TRACKS.length - 1);
+    expect(cursor).toBe(BROWSE_FIXTURE_TRACKS.length - 1);
 
     dispatch({ type: "browseMove", delta: 1 });
     expect(cursor).toBe(0);
@@ -184,20 +210,18 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     expect(phaseToBeat(eng.snapshot, "a")).toBe(4);
   });
 
-  test("U-07 requestDeckLoad emite openFilePicker", () => {
+  test("U-07 requestDeckLoad emite loadRemoteTrack", () => {
     const { eng } = createFakeEngine();
     const idle = createIdleBrowse();
-    const ops: { kind: string }[] = [];
+    const ops: { kind: string; deckId?: string; trackId?: string }[] = [];
     const dispatch = createMixerDispatch({
       eng,
-      browseByDeck: idle.browseByDeck,
-      getBrowseActiveDeck: idle.getBrowseActiveDeck,
-      setBrowseActiveDeck: idle.setBrowseActiveDeck,
+      browse: idle.browse,
       dispatchReducer: () => undefined,
       onUiOp: (op) => ops.push(op),
     });
     dispatch({ type: "requestDeckLoad", id: "a" });
-    expect(ops).toEqual([{ kind: "openFilePicker", deckId: "a" }]);
+    expect(ops).toEqual([{ kind: "loadRemoteTrack", deckId: "a", trackId: BROWSE_FIXTURE_TRACKS[0]!.id }]);
   });
 
   test("U-08 loadDeckFile chama loadDeckFile 1×", () => {
@@ -206,9 +230,7 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
     const file = new File([new Uint8Array(32)], "kick.mp3");
     const dispatch = createMixerDispatch({
       eng,
-      browseByDeck: idle.browseByDeck,
-      getBrowseActiveDeck: idle.getBrowseActiveDeck,
-      setBrowseActiveDeck: idle.setBrowseActiveDeck,
+      browse: idle.browse,
       dispatchReducer: () => undefined,
     });
     dispatch({ type: "loadDeckFile", id: "a", file });
@@ -216,17 +238,11 @@ test.describe("dispatcher do mixer — intenção e browse", () => {
   });
 });
 
-function stubTrack(id: string): TrainingTrack {
+function stubTrack(id: string): DeckTrack {
   return {
+    ...EMPTY_DECK_TRACK,
     id,
-    title: id,
-    artist: "Mamute",
-    genre: "House",
-    bpm: 120,
-    key: "4B",
-    scale: "C major",
-    duration: "3:00",
-    grid: "HOUSE · 4/4",
+    title: id || EMPTY_DECK_TRACK.title,
   };
 }
 
@@ -240,19 +256,24 @@ function stubDeck(id: DeckId): DeckState {
     eq: { high: 0, mid: 0, low: 0 },
     filter: 0,
     sync: false,
-    masterTempo: id === "a",
+    keyLock: false,
+    keySync: false,
+    keyShift: 0,
+    slip: false,
     cueMonitor: false,
     jogMode: "cdj",
     quantize: true,
-    loop: { active: false, inBeat: null, outBeat: null },
+    loop: { active: false, inBeat: null, outBeat: null, mode: "auto", beats: 4, manualNext: "in" },
     hotCues: [{ slot: 1, beat: 0, set: true }],
     cueBeat: 0,
-    track: stubTrack(id === "a" ? "radio-spotify-01" : "radio-deezer-02"),
+    track: stubTrack(""),
     phase: 0,
     sourceKind: "synthetic",
     durationSec: 0,
     positionSec: 0,
     peaks: null,
+    waveformV10: null,
+    beatGrid: null,
   };
 }
 
@@ -265,6 +286,7 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
     master: 0.82,
     booth: 0.65,
     cueMix: 0.5,
+    masterCue: false,
     masterDeck: "a",
   };
 
@@ -287,11 +309,13 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
     setCueMonitor: () => calls.push("setCueMonitor"),
     setJogMode: () => calls.push("setJogMode"),
     setQuantize: () => calls.push("setQuantize"),
-    loadTrack: (id, trackId) => {
-      calls.push("loadTrack");
-      const track = TRAINING_TRACKS.find((item) => item.id === trackId);
-      if (track) snapshot[id].track = track;
-    },
+    setSlip: () => calls.push("setSlip"),
+    setKeyLock: () => calls.push("setKeyLock"),
+    setKeySync: () => calls.push("setKeySync"),
+    nudgeKeyShift: () => calls.push("nudgeKeyShift"),
+    setLoopMode: () => calls.push("setLoopMode"),
+    pressSlipHotCue: () => calls.push("pressSlipHotCue"),
+    releaseSlipHotCue: () => calls.push("releaseSlipHotCue"),
     callCue: () => calls.push("callCue"),
     pressCue: () => calls.push("pressCue"),
     releaseCue: () => calls.push("releaseCue"),
@@ -305,10 +329,21 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
       calls.push("toggleLoop");
       snapshot[id].loop.active = !snapshot[id].loop.active;
     },
+    setMasterCue: () => calls.push("setMasterCue"),
+    setLoopIn: () => calls.push("setLoopIn"),
+    setLoopOut: () => calls.push("setLoopOut"),
+    loopHalve: () => calls.push("loopHalve"),
+    loopDouble: () => calls.push("loopDouble"),
+    setBeatLoop: () => calls.push("setBeatLoop"),
+    jumpBeats: () => calls.push("jumpBeats"),
+    scratchBegin: () => calls.push("scratchBegin"),
+    scratchTick: () => calls.push("scratchTick"),
+    scratchEnd: () => calls.push("scratchEnd"),
     nudge: () => calls.push("nudge"),
     ensure: async () => {
       calls.push("ensure");
     },
+    audioContext: () => null,
     loadDeckBuffer: () => calls.push("loadDeckBuffer"),
     loadDeckFile: async () => {
       calls.push("loadDeckFile");
@@ -322,7 +357,7 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
 function createIdleBrowse(snapshot: () => MixerSnapshot = () => createFakeEngine().eng.snapshot) {
   let cursor = 0;
   const browse = createBrowseState({
-    tracks: TRAINING_TRACKS,
+    tracks: BROWSE_FIXTURE_TRACKS,
     getCursor: () => cursor,
     setCursor: (index) => {
       cursor = index;
@@ -330,9 +365,7 @@ function createIdleBrowse(snapshot: () => MixerSnapshot = () => createFakeEngine
     snapshot,
   });
   return {
-    browseByDeck: { a: browse, b: browse },
-    getBrowseActiveDeck: () => "a" as DeckId,
-    setBrowseActiveDeck: () => undefined,
+    browse,
     readCursor: () => cursor,
   };
 }

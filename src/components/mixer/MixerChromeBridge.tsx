@@ -1,25 +1,19 @@
 import { useEffect } from "react";
-import type { BrowseChipTrack } from "./BrowseChip";
 import type { MidiLatency } from "../../lib/midi/use-midi-controller";
 import type { MidiLinkStatus } from "../../lib/midi/midi-session";
+import type { CueAudioRoutingSnapshot } from "../../lib/use-cue-audio-routing";
 import {
   registerMixerChromeActions,
   resetMixerChrome,
   updateMixerChrome,
 } from "../../lib/mixer-chrome";
-import type { BrowseSource, DeckId } from "../../types/mixer";
+import {
+  applyMixerStageTheme,
+  clearMixerStageTheme,
+  type MixerStagePalette,
+} from "../../lib/mixer-stage-palette";
 
 type MixerChromeBridgeProps = {
-  browseSource: BrowseSource;
-  changeBrowseSource: (source: BrowseSource) => void;
-  browseTrack: BrowseChipTrack | null;
-  browsePosition: number;
-  browseTotal: number;
-  browseLoading: boolean;
-  activeDeck: DeckId;
-  pendingLoad: DeckId | null;
-  libraryError: boolean;
-  cabinetHeadHidden: boolean;
   midiStatus: MidiLinkStatus;
   midiDeviceName: string | null;
   midiPorts: string[];
@@ -27,26 +21,18 @@ type MixerChromeBridgeProps = {
   midiError: string | null;
   midiLive: boolean;
   midiLatency: MidiLatency | null;
+  camelot: MixerStagePalette;
+  cueAudio: CueAudioRoutingSnapshot;
   onConnectMidi: () => void;
-  toggleCabinetHead: () => void;
 };
 
 /**
- * Espelha o estado da cabine no store global, para o header e a status bar.
+ * Espelha o estado da cabine no store global e no `html`, para o header e o
+ * fundo da rota herdarem a hora Camelot que está tocando.
  *
  * @param props Estado e callbacks do `MixerBoard` que o chrome global precisa.
  */
 export function MixerChromeBridge({
-  browseSource,
-  changeBrowseSource,
-  browseTrack,
-  browsePosition,
-  browseTotal,
-  browseLoading,
-  activeDeck,
-  pendingLoad,
-  libraryError,
-  cabinetHeadHidden,
   midiStatus,
   midiDeviceName,
   midiPorts,
@@ -54,32 +40,25 @@ export function MixerChromeBridge({
   midiError,
   midiLive,
   midiLatency,
+  camelot,
+  cueAudio,
   onConnectMidi,
-  toggleCabinetHead,
 }: MixerChromeBridgeProps) {
   useEffect(() => {
     registerMixerChromeActions({
-      changeBrowseSource,
       connectMidi: onConnectMidi,
-      toggleCabinetHead,
+      chooseCueOutput: cueAudio.chooseOutput,
+      retryCueOutput: cueAudio.retry,
     });
     updateMixerChrome({ mounted: true });
     return () => {
+      clearMixerStageTheme();
       resetMixerChrome();
     };
-  }, [changeBrowseSource, onConnectMidi, toggleCabinetHead]);
+  }, [cueAudio.chooseOutput, cueAudio.retry, onConnectMidi]);
 
   useEffect(() => {
     updateMixerChrome({
-      browseSource,
-      browseTrack,
-      browsePosition,
-      browseTotal,
-      browseLoading,
-      activeDeck,
-      pendingLoad,
-      libraryError,
-      cabinetHeadHidden,
       midi: {
         status: midiStatus,
         deviceName: midiDeviceName,
@@ -91,14 +70,6 @@ export function MixerChromeBridge({
       },
     });
   }, [
-    activeDeck,
-    browseLoading,
-    browsePosition,
-    browseSource,
-    browseTotal,
-    browseTrack,
-    cabinetHeadHidden,
-    libraryError,
     midiDeviceName,
     midiError,
     midiLastHeard,
@@ -106,8 +77,30 @@ export function MixerChromeBridge({
     midiLive,
     midiPorts,
     midiStatus,
-    pendingLoad,
   ]);
+
+  useEffect(() => {
+    applyMixerStageTheme(camelot);
+    updateMixerChrome({
+      camelot: {
+        a: camelot.camelotA,
+        b: camelot.camelotB,
+        live: camelot.camelotLive,
+        playing: camelot.playing,
+      },
+    });
+  }, [camelot]);
+
+  useEffect(() => {
+    updateMixerChrome({
+      cueAudio: {
+        status: cueAudio.status,
+        deviceLabel: cueAudio.deviceLabel,
+        detail: cueAudio.detail,
+        canChooseOutput: cueAudio.canChooseOutput,
+      },
+    });
+  }, [cueAudio.canChooseOutput, cueAudio.detail, cueAudio.deviceLabel, cueAudio.status]);
 
   return null;
 }

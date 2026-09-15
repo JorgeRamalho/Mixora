@@ -1,3 +1,8 @@
+import {
+  mapCatalogTrackToDetail,
+  mapCatalogTrackToLibrary,
+  parseCatalogTrackId,
+} from "./catalog-tracks";
 import { joinApiUrl, resolveTracksApiBase } from "./config";
 import { TracksApiError } from "./errors";
 import { toQuery } from "./query";
@@ -5,7 +10,11 @@ import type {
   AudioAnalysisResponse,
   AudioPrepareResponse,
   AudioStatusResponse,
+  CatalogTrackResponse,
+  GenreListResponse,
+  SubgenreListResponse,
   LibraryTrack,
+  ListCatalogTracksParams,
   ListTracksParams,
   TrackDetail,
   TrackListResponse,
@@ -32,22 +41,70 @@ export function createHttpTracksClient(options: HttpTracksClientOptions = {}): T
         fetchImpl,
         joinApiUrl(
           baseUrl,
-          `/api/tracks${          toQuery({
+          `/api/tracks${toQuery({
             limit: params.limit,
             offset: params.offset,
+            artist: params.artist,
+            track: params.track,
+            release: params.release,
             q: params.q,
             has_audio: params.has_audio,
             dj_ready: params.dj_ready,
             sort: params.sort,
             camelot: params.camelot,
             camelot_mode: params.camelot_mode,
+            bpm_min: params.bpm_min,
+            bpm_max: params.bpm_max,
+            label: params.label,
+            genre: params.genre,
+            subgenre: params.subgenre,
           })}`,
         ),
       );
     },
 
+    listCatalogTracks(params: ListCatalogTracksParams = {}): Promise<TrackListResponse> {
+      return requestJson<CatalogTrackListResponse>(
+        fetchImpl,
+        joinApiUrl(
+          baseUrl,
+          `/api/catalog/tracks${toQuery({
+            limit: params.limit,
+            offset: params.offset,
+            artist: params.artist,
+            track: params.track,
+            release: params.release,
+            genre: params.genre,
+            genre_id: params.genre_id,
+            subgenre: params.subgenre,
+            camelot: params.camelot,
+            camelot_mode: params.camelot_mode,
+            bpm_min: params.bpm_min,
+            bpm_max: params.bpm_max,
+            label: params.label,
+          })}`,
+        ),
+      ).then((response) => ({
+        total: response.total,
+        offset: response.offset,
+        limit: response.limit,
+        tracks: response.tracks.map(mapCatalogTrackToLibrary),
+      }));
+    },
+
     getTrack(trackId: string): Promise<TrackDetail> {
+      const beatportId = parseCatalogTrackId(trackId);
+      if (beatportId !== null) {
+        return this.getCatalogTrack(beatportId);
+      }
       return requestJson(fetchImpl, joinApiUrl(baseUrl, `/api/tracks/${encodeURIComponent(trackId)}`));
+    },
+
+    getCatalogTrack(beatportId: number): Promise<TrackDetail> {
+      return requestJson<CatalogTrackResponse>(
+        fetchImpl,
+        joinApiUrl(baseUrl, `/api/catalog/tracks/${beatportId}`),
+      ).then(mapCatalogTrackToDetail);
     },
 
     audioStatus(beatportId: number): Promise<AudioStatusResponse> {
@@ -78,6 +135,17 @@ export function createHttpTracksClient(options: HttpTracksClientOptions = {}): T
     ): Promise<AudioAnalysisResponse> {
       const url = resolveAnalysisUrl(baseUrl, beatportId, analysisUrl);
       return requestJson(fetchImpl, url, { signal });
+    },
+
+    listGenres(query?: string): Promise<GenreListResponse> {
+      return requestJson(
+        fetchImpl,
+        joinApiUrl(baseUrl, `/api/genres${toQuery({ q: query })}`),
+      );
+    },
+
+    listSubgenres(genreId: number): Promise<SubgenreListResponse> {
+      return requestJson(fetchImpl, joinApiUrl(baseUrl, `/api/genres/${genreId}/subgenres`));
     },
   };
 }
@@ -179,7 +247,7 @@ async function send(fetchImpl: typeof fetch, url: string, init?: RequestInit): P
   } catch (error) {
     if (isAbortError(error)) throw error;
     throw new TracksApiError(
-      "Não foi possível falar com o servidor de faixas. Confira o MusicDiscover em http://127.0.0.1:8765 ou volte ao USB de treino.",
+      "Não foi possível falar com o servidor de faixas. Confira o MusicDiscover em http://127.0.0.1:8765.",
       0,
     );
   }
@@ -196,4 +264,12 @@ async function send(fetchImpl: typeof fetch, url: string, init?: RequestInit): P
  */
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+/** Resposta paginada de GET /api/catalog/tracks. */
+interface CatalogTrackListResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  tracks: CatalogTrackResponse[];
 }

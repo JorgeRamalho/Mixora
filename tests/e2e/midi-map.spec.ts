@@ -11,6 +11,7 @@ import {
   HOT_CUE_FIRST_NOTE,
   MIXER_CC_14BIT,
   MIXER_CC_BROWSE,
+  MIXER_NOTE,
   PAD_COUNT,
 } from "../../src/lib/midi/ddj-400-protocol";
 import { JOG_TICKS_PER_NUDGE } from "../../src/lib/midi/midi-scales";
@@ -384,7 +385,7 @@ test.describe("fila de coalesce de um frame", () => {
     expect(coalesceMode({ type: "pitch", id: "a", value: 2 })).toBe("continuous");
     expect(coalesceMode({ type: "nudge", id: "a", direction: 1 })).toBe("accumulate");
     expect(coalesceMode({ type: "toggleLoop", id: "a" })).toBe("immediate");
-    expect(coalesceMode({ type: "loadTrack", id: "a", trackId: "x" })).toBe("immediate");
+    expect(coalesceMode({ type: "loadRemoteTrack", id: "a", trackId: "x" })).toBe("immediate");
   });
 });
 
@@ -416,6 +417,11 @@ test.describe("mapa MIDI DDJ-400 — transporte", () => {
       type: "toggleCueMonitor",
       id: "b",
     });
+    expect(mapDdj400(note(DDJ_STATUS.noteDeckB, DECK_NOTE.pflDeckB, 0x7f), ctx)).toEqual({
+      type: "toggleCueMonitor",
+      id: "b",
+    });
+    expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.pflDeckB, 0x7f), ctx)).toBeNull();
     expect(mapDdj400(note(DDJ_STATUS.noteDeckA, DECK_NOTE.sync, 0x7f), ctx)).toEqual({
       type: "toggleSync",
       id: "a",
@@ -479,6 +485,7 @@ test.describe("mapa MIDI DDJ-400 — transporte", () => {
     expect(coalesceMode({ type: "cueRelease", id: "a" })).toBe("immediate");
     expect(coalesceMode({ type: "toggleSync", id: "a" })).toBe("immediate");
     expect(coalesceMode({ type: "toggleCueMonitor", id: "a" })).toBe("immediate");
+    expect(coalesceMode({ type: "toggleMasterCue" })).toBe("immediate");
     expect(coalesceMode({ type: "masterDeck", id: "a" })).toBe("immediate");
   });
 });
@@ -589,11 +596,20 @@ test.describe("mapa MIDI DDJ-400 — browser", () => {
       type: "browseLoad",
       id: "b",
     });
-    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, BROWSER_NOTE.back, 0x7f), ctx)).toEqual({
-      type: "browseHome",
-    });
+    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, BROWSER_NOTE.back, 0x7f), ctx)).toBeNull();
 
     expect(mapDdj400(note(DDJ_STATUS.noteBrowser, BROWSER_NOTE.load.a, 0x00), ctx)).toBeNull();
+  });
+
+  test("MASTER CUE alterna o fone master e ignora SHIFT do rekordbox", () => {
+    const ctx = createDdj400MapContext();
+
+    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, MIXER_NOTE.masterCue, 0x7f), ctx)).toEqual({
+      type: "toggleMasterCue",
+    });
+    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, MIXER_NOTE.masterCue, 0x00), ctx)).toBeNull();
+    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, MIXER_NOTE.masterCueShiftFx, 0x7f), ctx)).toBeNull();
+    expect(mapDdj400(note(DDJ_STATUS.noteBrowser, MIXER_NOTE.masterCueShiftRec, 0x7f), ctx)).toBeNull();
   });
 
   test("0x47 é LOAD no browser e PLAY+SHIFT no deck, sem colidir", () => {
@@ -608,7 +624,6 @@ test.describe("mapa MIDI DDJ-400 — browser", () => {
   test("o encoder acumula no frame e sai numa ação só, ao contrário do nudge", () => {
     expect(coalesceMode({ type: "browseMove", delta: 1 })).toBe("accumulate");
     expect(coalesceMode({ type: "browseLoad", id: "a" })).toBe("immediate");
-    expect(coalesceMode({ type: "browseHome" })).toBe("immediate");
 
     const queue = createMidiActionQueue();
     expect(queue.isEmpty()).toBe(true);
@@ -664,7 +679,7 @@ test.describe("mapa MIDI DDJ-400 — pads", () => {
     test.skip(testInfo.project.name !== "desktop-chrome", "mapa puro, um projeto basta");
   });
 
-  test("os quatro primeiros pads viram slot, cada um no seu deck", () => {
+  test("os oito pads viram slot de hot cue, cada um no seu deck", () => {
     const ctx = createDdj400MapContext();
 
     for (let index = 0; index < HOT_CUE_SLOTS; index += 1) {
@@ -682,12 +697,8 @@ test.describe("mapa MIDI DDJ-400 — pads", () => {
     });
   });
 
-  test("os pads acima do quarto saem nulos, porque a cabine não tem esse slot", () => {
-    const ctx = createDdj400MapContext();
-
-    for (let index = HOT_CUE_SLOTS; index < PAD_COUNT; index += 1) {
-      expect(mapDdj400(note(DDJ_STATUS.notePadDeckA, HOT_CUE_FIRST_NOTE + index, 0x7f), ctx)).toBeNull();
-    }
+  test("não sobra pad de hot cue fora dos oito slots", () => {
+    expect(HOT_CUE_SLOTS).toBe(PAD_COUNT);
   });
 
   test("beat jump e beat loop viram ação sem estado de modo, e sampler continua fora", () => {

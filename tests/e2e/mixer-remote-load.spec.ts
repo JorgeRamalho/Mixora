@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { waitForLibraryBrowse } from "./helpers/mixer-deck-load";
 
-const DESKTOP = { width: 1440, height: 900 };
+const DESKTOP = { width: 1920, height: 1080 };
 
 test.describe("LOAD remoto na CDJ virtual", () => {
   test.beforeEach(async ({ page }, testInfo) => {
@@ -10,22 +11,14 @@ test.describe("LOAD remoto na CDJ virtual", () => {
     await page.waitForSelector(".mixer-board");
   });
 
-  test("toggle remote → LOAD → deck data-source-kind=file", async ({ page }) => {
-    await page.getByRole("radio", { name: "Biblioteca · API" }).click();
+  test("API default → LOAD → deck data-source-kind=file", async ({ page }) => {
+    await waitForLibraryBrowse(page);
     await expect(page.locator(".mixer-cabinet")).toHaveAttribute("data-browse-source", "remote");
-    await expect(page.locator(".deck-playlist[data-deck='a'] .deck-playlist-source")).toHaveText(
-      "Biblioteca · API online",
-    );
-    await expect(page.locator(".mixer-browse-chip")).toHaveAttribute("data-loading", "false", {
-      timeout: 15_000,
-    });
-    await expect(page.locator(".mixer-browse-title")).not.toHaveText(/Carregando|vazia/i);
 
-    const title = (await page.locator(".mixer-browse-title").innerText()).trim();
+    const title = (
+      await page.locator(".collection-track-row[data-browse-focus='true'] .collection-track-title").innerText()
+    ).trim();
     expect(title.length).toBeGreaterThan(0);
-
-    const optionTexts = await page.getByLabel("Faixas deck A").getByRole("option").allTextContents();
-    expect(optionTexts.some((text) => text.includes(title))).toBe(true);
 
     await page.getByLabel("Carregar deck A").click();
     await expect(page.locator(".cdj-deck[data-deck='a']")).toHaveAttribute(

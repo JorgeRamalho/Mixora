@@ -44,14 +44,12 @@ function normalizeKey(artist: string, title: string): string {
 
 /** Clipes oficiais no YouTube para playback legal na Mamute FM. */
 export const YOUTUBE_CLIP_MAP: Record<string, string> = {
-  [normalizeKey("Avicii", "Levels")]: "_ovdm2yX4MA",
   [normalizeKey("Daft Punk", "Around the World")]: "K0HSD_i2DvA",
   [normalizeKey("Deadmau5", "Strobe")]: "tKi9Z-f6qX4",
   [normalizeKey("David Guetta", "Titanium")]: "JRfuAukYTKg",
   [normalizeKey("Swedish House Mafia", "Don't You Worry Child")]: "1y6smkh6c-0",
   [normalizeKey("Daft Punk", "One More Time")]: "FGBhQbmPwH8",
   [normalizeKey("Eric Prydz", "Opus")]: "h-nQ63LCV7I",
-  [normalizeKey("Avicii", "Wake Me Up")]: "IcrbM1l_BoI",
   [normalizeKey("FISHER", "Losing It")]: "bkWeCDNDSjU",
   [normalizeKey("Fisher", "Losing It")]: "bkWeCDNDSjU",
   [normalizeKey("CamelPhat", "Cola")]: "q3lX2Jl_W-Q",

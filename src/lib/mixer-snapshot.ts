@@ -1,5 +1,4 @@
 import type { DeckId, MixerSnapshot } from "../types/mixer";
-
 /**
  * Clona o snapshot da cabine para o React enxergar mutação.
  *
@@ -18,7 +17,9 @@ export function cloneMixerSnapshot(snapshot: MixerSnapshot): MixerSnapshot {
       loop: { ...snapshot.a.loop },
       hotCues: snapshot.a.hotCues.map((cue) => ({ ...cue })),
       track: { ...snapshot.a.track },
-      peaks: snapshot.a.peaks ? snapshot.a.peaks.slice() : null,
+      peaks: snapshot.a.peaks,
+      waveformV10: snapshot.a.waveformV10,
+      beatGrid: snapshot.a.beatGrid ? { ...snapshot.a.beatGrid } : null,
     },
     b: {
       ...snapshot.b,
@@ -26,7 +27,9 @@ export function cloneMixerSnapshot(snapshot: MixerSnapshot): MixerSnapshot {
       loop: { ...snapshot.b.loop },
       hotCues: snapshot.b.hotCues.map((cue) => ({ ...cue })),
       track: { ...snapshot.b.track },
-      peaks: snapshot.b.peaks ? snapshot.b.peaks.slice() : null,
+      peaks: snapshot.b.peaks,
+      waveformV10: snapshot.b.waveformV10,
+      beatGrid: snapshot.b.beatGrid ? { ...snapshot.b.beatGrid } : null,
     },
   };
 }

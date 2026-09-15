@@ -1,19 +1,63 @@
-import type { BrowseSource, MixerSnapshot } from "../types/mixer";
-import type { BrowseTrackItem, DeckId } from "../types/mixer";
+import type { MixerSnapshot } from "../types/mixer";
+import type { BrowseTrackItem } from "../types/mixer";
 import type { LibraryTrack } from "./tracks-api/types";
 import type { CamelotFilterMode } from "./tracks-api/types";
 import { matchesCamelotFilter } from "./musical-key";
 
-export type DeckKeyFilters = Record<DeckId, string | null>;
-
-/** Filtros Camelot vazios para cada deck da cabine. */
-export const EMPTY_DECK_KEY_FILTERS: DeckKeyFilters = { a: null, b: null };
+export type LocalCollectionFilters = {
+  keyFilter: string | null;
+  camelotMode: CamelotFilterMode;
+  genre: string | null;
+  q: string;
+};
 
 /**
- * Filtra a biblioteca pelo tom Camelot de um deck, sem afetar o outro lado.
+ * Recorta o catálogo USB por Camelot, gênero e busca livre.
+ *
+ * @param catalog Lista completa da fonte local.
+ * @param filters Filtros da sessão de collection.
+ */
+export function filterLocalCollection(
+  catalog: readonly BrowseTrackItem[],
+  filters: LocalCollectionFilters,
+): readonly BrowseTrackItem[] {
+  const needle = filters.q.trim().toLowerCase();
+  const genreNeedle = filters.genre?.trim().toLowerCase() ?? "";
+  return catalog.filter((track) => {
+    if (filters.keyFilter && !matchesCamelotFilter(track.key, filters.keyFilter, filters.camelotMode)) {
+      return false;
+    }
+    if (genreNeedle && (track.genre ?? "").trim().toLowerCase() !== genreNeedle) {
+      return false;
+    }
+    if (!needle) return true;
+    const haystack = [track.title, track.artist, track.genre]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
+/**
+ * Gêneros únicos do catálogo USB, ordenados pelo nome.
+ *
+ * @param catalog Faixas de treino já mapeadas.
+ */
+export function uniqueLocalGenres(catalog: readonly BrowseTrackItem[]): string[] {
+  const names = new Set<string>();
+  for (const track of catalog) {
+    const genre = track.genre?.trim();
+    if (genre) names.add(genre);
+  }
+  return [...names].sort((left, right) => left.localeCompare(right, "pt", { sensitivity: "base" }));
+}
+
+/**
+ * Filtra a biblioteca pelo tom Camelot, sem afetar outros recortes.
  *
  * @param catalog Lista completa da fonte ativa.
- * @param keyFilter Tom escolhido no picker do deck, ou null para listar tudo.
+ * @param keyFilter Tom escolhido no picker, ou null para listar tudo.
  * @param mode Modo exato ou compatível do filtro Camelot.
  */
 export function filterBrowseTracks(
@@ -26,27 +70,29 @@ export function filterBrowseTracks(
 }
 
 /**
- * Converte uma linha da API remota no item usado pelas playlists laterais.
+ * Converte uma linha da API remota no item da collection.
  *
  * @param track Faixa retornada pelo MusicDiscover.
  */
 export function mapRemoteBrowseTrack(track: LibraryTrack): BrowseTrackItem {
+  const camelot = track.camelot ?? track.key;
   return {
     id: track.track_id,
     title: track.title,
     artist: track.artists,
+    albumOrMix: track.mix_name,
+    genre: track.genre,
     bpm: track.bpm,
-    key: track.camelot ?? track.key,
+    key: camelot,
+    musicalKey: track.key,
+    label: track.label,
+    durationMs: track.length_ms,
+    waveformPreview: track.waveform_preview ?? null,
   };
 }
 
 /**
  * Prende o cursor da biblioteca dentro da lista dando a volta nas pontas.
- *
- * O módulo é aplicado duas vezes de propósito, porque `-1 % 5` devolve `-1`
- * em JavaScript, e não `4`, ou seja o operador preserva o sinal do dividendo.
- * Sem a segunda soma, girar o encoder para trás na primeira track levaria o
- * cursor a um índice negativo.
  *
  * @param index Índice cru, possivelmente fora da lista.
  * @param total Tamanho da lista. Zero devolve 0 para não dividir por zero.
@@ -83,13 +129,12 @@ export type BrowseState = {
 };
 
 /**
- * Monta o estado de browse a partir da lista de treino e de um cursor
- * controlado pela tela.
+ * Monta o estado de browse a partir da collection compartilhada.
  *
  * @param tracks Faixas na ordem do encoder.
  * @param getCursor Lê o cursor corrente, em geral de um ref.
  * @param setCursor Grava o cursor já preso à lista.
- * @param snapshot Lê o snapshot para o BACK realinhar no master.
+ * @param snapshot Lê o snapshot para realinhar no master.
  */
 export function createBrowseState(options: {
   tracks: readonly { id: string }[];
@@ -114,27 +159,3 @@ export function createBrowseState(options: {
   };
 }
 
-/**
- * Lê a fonte do browse persistida na sessão. Sem valor, a cabine nasce em local.
- */
-export function loadBrowseSource(): BrowseSource {
-  if (typeof sessionStorage === "undefined") return "local";
-  try {
-    return sessionStorage.getItem("mamute.browse.source") === "remote" ? "remote" : "local";
-  } catch {
-    return "local";
-  }
-}
-
-/**
- * Grava a fonte do browse para o toggle sobreviver a um reload da página.
- *
- * @param source Fonte escolhida no chip.
- */
-export function saveBrowseSource(source: BrowseSource): void {
-  try {
-    sessionStorage.setItem("mamute.browse.source", source);
-  } catch {
-    return;
-  }
-}

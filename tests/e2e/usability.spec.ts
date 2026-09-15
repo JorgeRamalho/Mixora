@@ -101,7 +101,7 @@ test.describe("Usabilidade e função", () => {
     await expect(page.getByRole("region", { name: "Deck A" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Deck B" })).toBeVisible();
     await expect(page.getByLabel("Crossfader")).toBeVisible();
-    await page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Play" }).click();
+    await page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Play", exact: true }).click();
     await expect(page.getByRole("region", { name: "Deck A" }).getByRole("button", { name: "Pause" })).toBeVisible();
   });
 

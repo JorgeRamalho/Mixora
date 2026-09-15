@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import { applyAbsoluteAction, type MixerEngine } from "../../src/lib/mixer-dispatch";
 import { MIXER_ACTION_ROUTES, getActionRoute } from "../../src/lib/mixer-action-routing";
 import { assertAllowedInReducer } from "../../src/lib/mixer-assert";
-import type { DeckId, DeckState, MixerSnapshot, TrainingTrack } from "../../src/types/mixer";
+import { EMPTY_DECK_TRACK } from "../../src/lib/deck-track";
+import type { DeckId, DeckState, MixerSnapshot, DeckTrack } from "../../src/types/mixer";
 import { MIXER_ACTION_SAMPLES } from "../helpers/mixer-contract-fixtures";
 
 test.describe("contrato do reducer do mixer", () => {
@@ -40,18 +41,8 @@ test.describe("contrato do reducer do mixer", () => {
   });
 });
 
-function stubTrack(id: string): TrainingTrack {
-  return {
-    id,
-    title: id,
-    artist: "Mamute",
-    genre: "House",
-    bpm: 120,
-    key: "4B",
-    scale: "C major",
-    duration: "3:00",
-    grid: "HOUSE · 4/4",
-  };
+function stubTrack(id: string): DeckTrack {
+  return { ...EMPTY_DECK_TRACK, id, title: id || EMPTY_DECK_TRACK.title };
 }
 
 function stubDeck(id: DeckId): DeckState {
@@ -64,11 +55,14 @@ function stubDeck(id: DeckId): DeckState {
     eq: { high: 0, mid: 0, low: 0 },
     filter: 0,
     sync: false,
-    masterTempo: id === "a",
+    keyLock: false,
+    keySync: false,
+    keyShift: 0,
+    slip: false,
     cueMonitor: false,
     jogMode: "cdj",
     quantize: true,
-    loop: { active: false, inBeat: null, outBeat: null },
+    loop: { active: false, inBeat: null, outBeat: null, mode: "auto", beats: 4, manualNext: "in" },
     hotCues: [{ slot: 1, beat: 0, set: true }],
     cueBeat: 0,
     track: stubTrack(id),
@@ -77,6 +71,8 @@ function stubDeck(id: DeckId): DeckState {
     durationSec: 0,
     positionSec: 0,
     peaks: null,
+    waveformV10: null,
+    beatGrid: null,
   };
 }
 
@@ -89,6 +85,7 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
     master: 0.82,
     booth: 0.65,
     cueMix: 0.5,
+    masterCue: false,
     masterDeck: "a",
   };
   const eng: MixerEngine = {
@@ -102,12 +99,19 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
     setMaster: () => calls.push("setMaster"),
     setBooth: () => calls.push("setBooth"),
     setCueMix: () => calls.push("setCueMix"),
+    setMasterCue: () => calls.push("setMasterCue"),
     setSync: () => calls.push("setSync"),
     setMasterDeck: () => calls.push("setMasterDeck"),
     setCueMonitor: () => calls.push("setCueMonitor"),
     setJogMode: () => calls.push("setJogMode"),
     setQuantize: () => calls.push("setQuantize"),
-    loadTrack: () => calls.push("loadTrack"),
+    setSlip: () => calls.push("setSlip"),
+    setKeyLock: () => calls.push("setKeyLock"),
+    setKeySync: () => calls.push("setKeySync"),
+    nudgeKeyShift: () => calls.push("nudgeKeyShift"),
+    setLoopMode: () => calls.push("setLoopMode"),
+    pressSlipHotCue: () => calls.push("pressSlipHotCue"),
+    releaseSlipHotCue: () => calls.push("releaseSlipHotCue"),
     callCue: () => calls.push("callCue"),
     pressCue: () => calls.push("pressCue"),
     releaseCue: () => calls.push("releaseCue"),
@@ -118,10 +122,20 @@ function createFakeEngine(): { eng: MixerEngine; calls: string[] } {
       calls.push("toggle");
     },
     toggleLoop: () => calls.push("toggleLoop"),
+    setLoopIn: () => calls.push("setLoopIn"),
+    setLoopOut: () => calls.push("setLoopOut"),
+    loopHalve: () => calls.push("loopHalve"),
+    loopDouble: () => calls.push("loopDouble"),
+    setBeatLoop: () => calls.push("setBeatLoop"),
+    jumpBeats: () => calls.push("jumpBeats"),
+    scratchBegin: () => calls.push("scratchBegin"),
+    scratchTick: () => calls.push("scratchTick"),
+    scratchEnd: () => calls.push("scratchEnd"),
     nudge: () => calls.push("nudge"),
     ensure: async () => {
       calls.push("ensure");
     },
+    audioContext: () => null,
     loadDeckBuffer: () => calls.push("loadDeckBuffer"),
     loadDeckFile: async () => {
       calls.push("loadDeckFile");

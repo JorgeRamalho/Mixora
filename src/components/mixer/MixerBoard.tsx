@@ -9,7 +9,6 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { TRAINING_TRACKS } from "../../data/training-tracks";
 import { engine } from "../../lib/audio-engine";
 import {
   armDeckFileInput,
@@ -19,42 +18,47 @@ import {
 import { assertAllowedInReducer } from "../../lib/mixer-assert";
 import {
   createBrowseState,
-  filterBrowseTracks,
-  loadBrowseSource,
   mapRemoteBrowseTrack,
-  masterTrackIndex,
-  saveBrowseSource,
   wrapCursor,
 } from "../../lib/mixer-browse";
 import {
+  filterTracksByCollectionColumns,
+  resolveCollectionLibraryQuery,
+} from "../../lib/collection-column-filters";
+import {
   getBrowseSessionSnapshot,
-  resetBrowseSessionForSourceChange,
   seedBrowseSessionIfPristine,
-  setBrowseActiveDeck,
   setBrowseCursor,
+  setCollectionColumnFilters,
   subscribeBrowseSession,
   updateBrowseSession,
 } from "../../lib/mixer-browse-session";
-import {
-  loadCabinetHeadHidden,
-  saveCabinetHeadHidden,
-} from "../../lib/mixer-cabinet-head";
 import { applyAbsoluteAction, createMixerDispatch } from "../../lib/mixer-dispatch";
+import { notifyMixerSnapshotChange } from "../../lib/mixer-snapshot-store";
 import { cloneMixerSnapshot } from "../../lib/mixer-snapshot";
-import { getCamelotKey, normalizeCamelotCode } from "../../lib/musical-key";
+import { normalizeCamelotCode } from "../../lib/musical-key";
+import {
+  mixerStagePaletteCssVars,
+  resolveMixerStagePalette,
+} from "../../lib/mixer-stage-palette";
+import { useCueAudioRouting } from "../../lib/use-cue-audio-routing";
 import { useMidiController } from "../../lib/midi/use-midi-controller";
-import { resetDdj400LedCache, syncDdj400Leds } from "../../lib/midi/ddj-400-led-sync";
+import { requestLedSync, resetDdj400LedCache } from "../../lib/midi/ddj-400-led-sync";
 import { useDeckRemoteLoad } from "../../lib/tracks-api/hooks/use-deck-remote-load";
+import { useGenreTaxonomy, useSubgenreTaxonomy } from "../../lib/tracks-api/hooks/use-genre-taxonomy";
 import { usePrefetchAdjacentTracks } from "../../lib/tracks-api/hooks/use-prefetch-adjacent";
 import { useTrackDetail } from "../../lib/tracks-api/hooks/use-track-detail";
-import { useTrackLibrary } from "../../lib/tracks-api/hooks/use-track-library";
-import type { BrowseSource, DeckId, MixerAction, MixerSnapshot } from "../../types/mixer";
-import { BrowseChip } from "./BrowseChip";
-import { BrowseSourceToggle } from "./BrowseSourceToggle";
-import { CabinetHeadToggle } from "./CabinetHeadToggle";
+import {
+  canFetchRemoteCollection,
+  remoteCollectionIdleCopy,
+  useTrackLibrary,
+} from "../../lib/tracks-api/hooks/use-track-library";
+import type { GenreResponse } from "../../lib/tracks-api/types";
+import type { DeckId, MixerAction, MixerSnapshot, RemoteCollectionMode } from "../../types/mixer";
 import { CdjCamelotPicker } from "./CdjCamelotPicker";
 import { CdjDeck } from "./CdjDeck";
-import { MidiStatus } from "./MidiStatus";
+import { CollectionBrowser } from "./CollectionBrowser";
+import { MasterWaveforms } from "./MasterWaveforms";
 import { MixerChromeBridge } from "./MixerChromeBridge";
 import { MixerConsole } from "./MixerConsole";
 
@@ -72,100 +76,98 @@ import { MixerConsole } from "./MixerConsole";
 function reducer(_state: MixerSnapshot, action: MixerAction): MixerSnapshot {
   assertAllowedInReducer(action);
   applyAbsoluteAction(engine, action);
-  return cloneMixerSnapshot(engine.snapshot);
+  const next = cloneMixerSnapshot(engine.snapshot);
+  notifyMixerSnapshotChange();
+  return next;
 }
 
+/** Fonte fixa da collection: a cabine só lista a biblioteca da API. */
+const LIBRARY_BROWSE_SOURCE = "remote" as const;
+
 export function MixerBoard() {
-  const [snap, dispatch] = useReducer(reducer, engine.snapshot, () =>
+  const [snap, dispatchBase] = useReducer(reducer, engine.snapshot, () =>
     cloneMixerSnapshot(engine.snapshot),
   );
 
-  const [browseSource, setBrowseSource] = useState<BrowseSource>(() => loadBrowseSource());
+  /**
+   * Único caminho que atualiza o React depois de mutar o engine, e já agenda o
+   * espelho dos LEDs a partir do engine — nunca do snap React, que pode atrasar.
+   */
+  const dispatch = useCallback((action: MixerAction) => {
+    dispatchBase(action);
+    requestLedSync();
+  }, []);
+
   const browseSession = useSyncExternalStore(
     subscribeBrowseSession,
     getBrowseSessionSnapshot,
     getBrowseSessionSnapshot,
   );
-  const { cursorByDeck, browseKeyFilterByDeck, browseCamelotMode, browseActiveDeck } =
-    browseSession;
-  const [cabinetHeadHidden, setCabinetHeadHidden] = useState(() => loadCabinetHeadHidden());
+  const {
+    cursor,
+    collectionMode,
+    genreFilter,
+    genreId,
+    subgenreFilter,
+    columnFilters,
+    browseKeyFilter,
+    browseCamelotMode,
+  } = browseSession;
   const [camelotPickerDeck, setCamelotPickerDeck] = useState<DeckId | null>(null);
-  const [keyFilterFlashByDeck, setKeyFilterFlashByDeck] = useState<Record<DeckId, number>>({ a: 0, b: 0 });
+  const columnQuery = useMemo(
+    () => resolveCollectionLibraryQuery(columnFilters),
+    [columnFilters],
+  );
+  const libraryCamelot = browseKeyFilter ?? columnQuery.columnCamelot;
+  const libraryCamelotMode = browseKeyFilter
+    ? browseCamelotMode
+    : columnQuery.columnCamelot
+      ? "exact"
+      : browseCamelotMode;
 
-  const libraryA = useTrackLibrary(browseSource, {
-    camelot: browseKeyFilterByDeck.a,
-    camelotMode: browseCamelotMode,
-  });
-  const libraryB = useTrackLibrary(browseSource, {
-    camelot: browseKeyFilterByDeck.b,
-    camelotMode: browseCamelotMode,
-  });
+  const libraryFilters = {
+    collectionMode,
+    artist: columnQuery.artist,
+    track: columnQuery.track,
+    release: columnQuery.release,
+    label: columnQuery.label,
+    genreId,
+    camelot: libraryCamelot,
+    camelotMode: libraryCamelotMode,
+    genre: genreFilter,
+    subgenre: subgenreFilter,
+    bpmMin: columnQuery.bpmMin ?? null,
+    bpmMax: columnQuery.bpmMax ?? null,
+  };
+  const browseIdle = !canFetchRemoteCollection(libraryFilters);
+  const browseIdleCopy = remoteCollectionIdleCopy(libraryFilters);
+  const library = useTrackLibrary(LIBRARY_BROWSE_SOURCE, libraryFilters);
+  const remoteGenres = useGenreTaxonomy(LIBRARY_BROWSE_SOURCE, collectionMode);
+  const remoteSubgenres = useSubgenreTaxonomy(LIBRARY_BROWSE_SOURCE, collectionMode, genreId);
   const remote = useDeckRemoteLoad(engine);
 
-  const localCatalog = useMemo(
-    () =>
-      TRAINING_TRACKS.map((track) => ({
-        id: track.id,
-        title: track.title,
-        artist: track.artist,
-        bpm: track.bpm,
-        key: track.key,
-      })),
-    [],
-  );
+  const browseTracks = useMemo(() => {
+    const pages = library.data?.pages ?? [];
+    const mapped = pages.flatMap((page) => page.tracks.map(mapRemoteBrowseTrack));
+    return filterTracksByCollectionColumns(mapped, columnFilters);
+  }, [columnFilters, library.data?.pages]);
 
-  const browseTracksByDeck = useMemo(
-    () => {
-      if (browseSource === "local") {
-        return {
-          a: filterBrowseTracks(localCatalog, browseKeyFilterByDeck.a, browseCamelotMode),
-          b: filterBrowseTracks(localCatalog, browseKeyFilterByDeck.b, browseCamelotMode),
-        };
-      }
-      return {
-        a: (libraryA.data?.tracks ?? []).map(mapRemoteBrowseTrack),
-        b: (libraryB.data?.tracks ?? []).map(mapRemoteBrowseTrack),
-      };
-    },
-    [
-      browseCamelotMode,
-      browseKeyFilterByDeck,
-      browseSource,
-      libraryA.data?.tracks,
-      libraryB.data?.tracks,
-      localCatalog,
-    ],
-  );
+  const genres = remoteGenres.data?.genres ?? [];
+  const subgenres = remoteSubgenres.data?.subgenres ?? [];
+  const emptyGenreCopy =
+    collectionMode !== null && !remoteGenres.isLoading && genres.length === 0
+      ? "Nenhum gênero sincronizado. Rode discover sync genres."
+      : null;
 
   const [pendingLoad, setPendingLoad] = useState<DeckId | null>(null);
 
-  const cursorRef = useRef(cursorByDeck);
-  const browseSourceRef = useRef(browseSource);
-  const browseActiveDeckRef = useRef(browseActiveDeck);
+  const cursorRef = useRef(cursor);
   const dispatchActionRef = useRef<ReturnType<typeof createMixerDispatch> | null>(null);
 
-  browseActiveDeckRef.current = browseActiveDeck;
-  browseSourceRef.current = browseSource;
-  cursorRef.current = cursorByDeck;
+  cursorRef.current = cursor;
 
   const camelotPickerDeckRef = useRef<DeckId | null>(null);
   camelotPickerDeckRef.current = camelotPickerDeck;
-
-  const changeBrowseSource = useCallback((source: BrowseSource) => {
-    saveBrowseSource(source);
-    browseSourceRef.current = source;
-    setBrowseSource(source);
-    resetBrowseSessionForSourceChange();
-    setCamelotPickerDeck(null);
-  }, []);
-
-  const toggleCabinetHead = useCallback(() => {
-    setCabinetHeadHidden((current) => {
-      const next = !current;
-      saveCabinetHeadHidden(next);
-      return next;
-    });
-  }, []);
 
   const openCamelotPicker = useCallback((deckId: DeckId) => {
     disarmDeckFileInput();
@@ -178,16 +180,13 @@ export function MixerBoard() {
   }, []);
 
   const applyBrowseKeyFilter = useCallback((code: string) => {
-    const deckId = camelotPickerDeckRef.current;
-    if (deckId === null) return;
     const normalized = normalizeCamelotCode(code) ?? code;
     updateBrowseSession({
-      browseKeyFilterByDeck: { ...browseKeyFilterByDeck, [deckId]: normalized },
-      cursorByDeck: { ...cursorByDeck, [deckId]: 0 },
+      browseKeyFilter: normalized,
+      cursor: 0,
     });
     setCamelotPickerDeck(null);
-    setKeyFilterFlashByDeck((current) => ({ ...current, [deckId]: current[deckId] + 1 }));
-  }, [browseKeyFilterByDeck, cursorByDeck]);
+  }, []);
 
   const prepareDeckLoad = useCallback(() => {
     disarmDeckFileInput();
@@ -217,26 +216,18 @@ export function MixerBoard() {
     [handleDeckFile],
   );
 
-  const browseByDeck = useMemo(
-    () => ({
-      a: createBrowseState({
-        tracks: browseTracksByDeck.a,
-        getCursor: () => cursorRef.current.a,
+  const browse = useMemo(
+    () =>
+      createBrowseState({
+        tracks: browseTracks,
+        getCursor: () => cursorRef.current,
         setCursor: (index) => {
-          setBrowseCursor("a", index);
+          cursorRef.current = index;
+          setBrowseCursor(index);
         },
         snapshot: () => engine.snapshot,
       }),
-      b: createBrowseState({
-        tracks: browseTracksByDeck.b,
-        getCursor: () => cursorRef.current.b,
-        setCursor: (index) => {
-          setBrowseCursor("b", index);
-        },
-        snapshot: () => engine.snapshot,
-      }),
-    }),
-    [browseTracksByDeck],
+    [browseTracks],
   );
 
   const handleRemoteLoad = useCallback(
@@ -249,17 +240,17 @@ export function MixerBoard() {
 
   /**
    * Caminho único de ação da cabine, para o mouse e a DDJ-400 emitirem o
-   * mesmo union em vez de fluxos separados.
+   * mesmo union em vez de fluxos separados. O cue dispara `requestLedSync`
+   * na hora, com force, para o LED não esperar o refresh do React.
    */
   const dispatchAction = useMemo(
     () =>
       createMixerDispatch({
         eng: engine,
-        browseByDeck,
-        getBrowseActiveDeck: () => browseActiveDeckRef.current,
-        setBrowseActiveDeck: (deckId) => setBrowseActiveDeck(deckId),
+        browse,
         dispatchReducer: dispatch,
-        getBrowseSource: () => browseSourceRef.current,
+        syncLedsOnCue: () => requestLedSync({ force: true }),
+        getBrowseSource: () => LIBRARY_BROWSE_SOURCE,
         onUiOp: (op) => {
           if (op.kind === "openFilePicker") openDeckPicker(op.deckId);
           if (op.kind === "armFilePicker") armDeckPicker(op.deckId);
@@ -267,98 +258,168 @@ export function MixerBoard() {
           if (op.kind === "loadRemoteTrack") void handleRemoteLoad(op.deckId, op.trackId);
         },
       }),
-    [armDeckPicker, browseByDeck, handleRemoteLoad, openDeckPicker],
+    [armDeckPicker, browse, dispatch, handleRemoteLoad, openDeckPicker],
   );
 
   dispatchActionRef.current = dispatchAction;
 
   const midi = useMidiController(dispatchAction);
+  const cueAudio = useCueAudioRouting(midi.status === "connected");
   const masterKey = snap[snap.masterDeck].track.key;
-  const activeBrowseTracks = browseTracksByDeck[browseActiveDeck];
-  const safeCursorByDeck = {
-    a: wrapCursor(cursorByDeck.a, browseTracksByDeck.a.length),
-    b: wrapCursor(cursorByDeck.b, browseTracksByDeck.b.length),
-  };
-  const safeActiveBrowseCursor = safeCursorByDeck[browseActiveDeck];
-  const browseTrack = activeBrowseTracks[safeActiveBrowseCursor] ?? null;
+  const safeCursor = wrapCursor(cursor, browseTracks.length);
+  const browseTrack = browseTracks[safeCursor] ?? null;
   const camelotPickerSelected =
     camelotPickerDeck === null
       ? "8A"
-      : normalizeCamelotCode(snap[camelotPickerDeck].track.key) ??
-        browseKeyFilterByDeck[camelotPickerDeck] ??
-        "8A";
-  const libraryLoadingByDeck = {
-    a: browseSource === "remote" && libraryA.isLoading && !libraryA.data,
-    b: browseSource === "remote" && libraryB.isLoading && !libraryB.data,
-  };
-  const libraryLoading = libraryLoadingByDeck.a || libraryLoadingByDeck.b;
-  const libraryError = libraryA.isError || libraryB.isError;
-  const remoteIds = useMemo(() => {
-    if (browseSource !== "remote") return [];
-    const activeTracks =
-      browseActiveDeck === "a" ? libraryA.data?.tracks : libraryB.data?.tracks;
-    return activeTracks ?? [];
-  }, [browseActiveDeck, browseSource, libraryA.data?.tracks, libraryB.data?.tracks]);
-  const boardStyle = useMemo(
+      : normalizeCamelotCode(snap[camelotPickerDeck].track.key) ?? browseKeyFilter ?? "8A";
+  const libraryLoading = library.isLoading && !library.data;
+  const loadingMore = library.isFetchingNextPage;
+  const hasMoreTracks = Boolean(library.hasNextPage);
+  const handleLoadMore = useCallback(() => {
+    if (!library.hasNextPage || library.isFetchingNextPage) return;
+    void library.fetchNextPage();
+  }, [library.fetchNextPage, library.hasNextPage, library.isFetchingNextPage]);
+  const remoteIds = useMemo(
+    () => (library.data?.pages ?? []).flatMap((page) => page.tracks),
+    [library.data?.pages],
+  );
+  const loadedTrackIds = useMemo(() => [snap.a.track.id, snap.b.track.id], [snap.a.track.id, snap.b.track.id]);
+  const stagePalette = useMemo(
     () =>
-      ({
-        "--camelot-a": getCamelotKey(snap.a.track.key)?.color ?? "#8b8fa8",
-        "--camelot-b": getCamelotKey(snap.b.track.key)?.color ?? "#8b8fa8",
-      }) as CSSProperties,
-    [snap.a.track.key, snap.b.track.key],
+      resolveMixerStagePalette({
+        keyA: snap.a.track.key,
+        keyB: snap.b.track.key,
+        playingA: snap.a.playing,
+        playingB: snap.b.playing,
+        crossfader: snap.crossfader,
+      }),
+    [snap.a.playing, snap.a.track.key, snap.b.playing, snap.b.track.key, snap.crossfader],
+  );
+  const cabinetStyle = useMemo(
+    () => mixerStagePaletteCssVars(stagePalette) as CSSProperties,
+    [stagePalette],
   );
 
-  usePrefetchAdjacentTracks(remoteIds, safeActiveBrowseCursor);
-  useTrackDetail(browseSource === "remote" ? (browseTrack?.id ?? null) : null);
+  usePrefetchAdjacentTracks(remoteIds, safeCursor);
+  useTrackDetail(browseTrack?.id ?? null);
   const { markPainted } = midi;
 
   useLayoutEffect(() => {
     markPainted();
-    syncDdj400Leds(snap);
   }, [snap, markPainted]);
 
   useEffect(() => {
-    if (midi.status === "connected") return;
+    if (midi.status === "connected") {
+      resetDdj400LedCache();
+      requestLedSync({ force: true });
+      return;
+    }
     resetDdj400LedCache();
   }, [midi.status]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (engine.snapshot.a.playing || engine.snapshot.b.playing) {
-        dispatch({ type: "refresh" });
-      }
-    }, 80);
-    return () => window.clearInterval(timer);
-  }, []);
+    dispatch({ type: "refresh" });
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!import.meta.hot) return;
+    const resyncAfterHmr = () => {
+      dispatch({ type: "refresh" });
+    };
+    import.meta.hot.on("vite:afterUpdate", resyncAfterHmr);
+    return () => {
+      import.meta.hot?.off("vite:afterUpdate", resyncAfterHmr);
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
+    return engine.subscribePlaying(() => {
+      dispatch({ type: "refresh" });
+    });
+  }, [dispatch]);
 
   useEffect(() => () => disarmDeckFileInput(), []);
 
   useEffect(() => {
-    seedBrowseSessionIfPristine({
-      a: masterTrackIndex(
-        engine.snapshot,
-        TRAINING_TRACKS.map((track) => track.id),
-      ),
-      b: masterTrackIndex(
-        engine.snapshot,
-        TRAINING_TRACKS.map((track) => track.id),
-      ),
+    seedBrowseSessionIfPristine(0);
+  }, []);
+
+  /**
+   * Clique na linha só posiciona o cursor compartilhado.
+   *
+   * @param trackId Faixa clicada na collection.
+   */
+  const handleSelectTrack = useCallback(
+    (trackId: string) => {
+      const index = browseTracks.findIndex((track) => track.id === trackId);
+      if (index >= 0) setBrowseCursor(index);
+    },
+    [browseTracks],
+  );
+
+  /**
+   * Drop ou MIDI LOAD carrega a faixa no deck destino.
+   *
+   * @param deckId Destino A ou B.
+   * @param trackId Faixa arrastada ou do cursor.
+   */
+  const handleDropTrack = useCallback(
+    (deckId: DeckId, trackId: string) => {
+      dispatchAction({ type: "loadRemoteTrack", id: deckId, trackId });
+    },
+    [dispatchAction],
+  );
+
+  /**
+   * Ativa um chip de gênero e zera subgênero e cursor.
+   *
+   * @param genre Chip escolhido, ou null para Todos.
+   */
+  const handleSelectGenre = useCallback((genre: GenreResponse | null) => {
+    updateBrowseSession({
+      genreFilter: genre?.name ?? null,
+      genreId: genre?.id ?? null,
+      subgenreFilter: null,
+      cursor: 0,
     });
   }, []);
 
+  const handleCollectionModeChange = useCallback((mode: RemoteCollectionMode | null) => {
+    updateBrowseSession({
+      collectionMode: mode,
+      genreFilter: null,
+      genreId: null,
+      subgenreFilter: null,
+      cursor: 0,
+    });
+  }, []);
+
+  const handleSelectCamelot = useCallback((code: string | null) => {
+    updateBrowseSession({
+      browseKeyFilter: code ? (normalizeCamelotCode(code) ?? code) : null,
+      cursor: 0,
+    });
+  }, []);
+
+  /**
+   * Aplica o recorte AND digitado sob o header da collection.
+   *
+   * @param filters Texto das colunas Artista, Faixa, Álbum, BPM, Camelot e Label.
+   */
+  const handleColumnFiltersChange = useCallback((filters: typeof columnFilters) => {
+    setCollectionColumnFilters(filters);
+  }, []);
+
   return (
-    <div className="mixer-cabinet" data-browse-source={browseSource}>
+    <div
+      className="mixer-cabinet"
+      data-browse-source={LIBRARY_BROWSE_SOURCE}
+      data-browse-cursor={String(safeCursor)}
+      data-browse-total={String(browseTracks.length)}
+      data-playing={stagePalette.playing ? "true" : "false"}
+      style={cabinetStyle}
+    >
       <MixerChromeBridge
-        browseSource={browseSource}
-        changeBrowseSource={changeBrowseSource}
-        browseTrack={browseTrack}
-        browsePosition={safeActiveBrowseCursor + 1}
-        browseTotal={activeBrowseTracks.length}
-        browseLoading={libraryLoading}
-        activeDeck={browseActiveDeck}
-        pendingLoad={pendingLoad}
-        libraryError={libraryError}
-        cabinetHeadHidden={cabinetHeadHidden}
         midiStatus={midi.status}
         midiDeviceName={midi.deviceName}
         midiPorts={midi.ports}
@@ -366,127 +427,76 @@ export function MixerBoard() {
         midiError={midi.error}
         midiLive={midi.live}
         midiLatency={midi.latency}
+        camelot={stagePalette}
+        cueAudio={cueAudio}
         onConnectMidi={midi.connect}
-        toggleCabinetHead={toggleCabinetHead}
       />
       <div className="mixer-stage" data-stage="4">
-        <div
-          className="mixer-board"
-          style={boardStyle}
-          data-cabinet-head-hidden={cabinetHeadHidden ? "true" : "false"}
-        >
-          {!cabinetHeadHidden ? (
-            <header className="mixer-cabinet-head">
-              <div className="mixer-cabinet-head__source">
-                <BrowseSourceToggle value={browseSource} onChange={changeBrowseSource} />
-              </div>
-              <div className="mixer-cabinet-head__center">
-                {pendingLoad ? (
-                  <p
-                    className="mixer-board-message mixer-board-message--pending"
-                    role="status"
-                    title={`LOAD na DDJ-400: clique na tela para escolher o áudio do deck ${pendingLoad.toUpperCase()}.`}
-                  >
-                    LOAD deck {pendingLoad.toUpperCase()}: clique na tela
-                  </p>
-                ) : null}
-                {libraryError ? (
-                  <p
-                    className="mixer-board-message mixer-board-message--error"
-                    role="alert"
-                    title="Não foi possível listar a biblioteca remota. Confira o MusicDiscover em http://127.0.0.1:8765 ou volte ao USB de treino."
-                  >
-                    Biblioteca remota indisponível — volte ao USB ou confira o MusicDiscover
-                  </p>
-                ) : null}
-                <BrowseChip
-                  track={browseTrack}
-                  position={safeActiveBrowseCursor + 1}
-                  total={activeBrowseTracks.length}
-                  source={browseSource}
-                  loading={libraryLoading}
-                  activeDeck={browseActiveDeck}
-                />
-              </div>
-              <div className="mixer-cabinet-head__actions">
-                <CabinetHeadToggle hidden={cabinetHeadHidden} onToggle={toggleCabinetHead} />
-                <div className="mixer-cabinet-head__midi">
-                  <MidiStatus
-                    status={midi.status}
-                    deviceName={midi.deviceName}
-                    ports={midi.ports}
-                    lastHeard={midi.lastHeard}
-                    error={midi.error}
-                    live={midi.live}
-                    latency={midi.latency}
-                    onConnect={midi.connect}
-                  />
-                </div>
-              </div>
-            </header>
-          ) : null}
-          <CdjDeck
-            id="a"
-            masterKey={masterKey}
-            midiConnected={midi.status === "connected"}
-            loadPending={pendingLoad === "a"}
-            browseSource={browseSource}
-            libraryLoading={libraryLoadingByDeck.a}
-            browseKeyFilter={browseKeyFilterByDeck.a}
-            browseActive={browseActiveDeck === "a"}
-            playlistTracks={browseTracksByDeck.a}
-            loadedTrackId={snap.a.track.id}
-            browseCursor={safeCursorByDeck.a}
-            keyFilterFlash={keyFilterFlashByDeck.a}
-            onSelectTrack={(trackId) => {
-              if (browseSource === "remote") {
-                dispatchAction({ type: "loadRemoteTrack", id: "a", trackId });
-                return;
-              }
-              dispatchAction({ type: "loadTrack", id: "a", trackId });
-            }}
-            onKeyMetricClick={() => openCamelotPicker("a")}
-            remoteLoad={remote.byDeck.a}
-            onRetryRemote={() => {
-              void remote.retry("a").then((ok) => {
-                if (ok) dispatch({ type: "refresh" });
-              });
-            }}
-            onLoadPrepare={prepareDeckLoad}
-            onFile={(file) => handleDeckFile("a", file)}
-            onChange={dispatchAction}
-          />
-          <MixerConsole snap={snap} onChange={dispatchAction} />
-          <CdjDeck
-            id="b"
-            masterKey={masterKey}
-            midiConnected={midi.status === "connected"}
-            loadPending={pendingLoad === "b"}
-            browseSource={browseSource}
-            libraryLoading={libraryLoadingByDeck.b}
-            browseKeyFilter={browseKeyFilterByDeck.b}
-            browseActive={browseActiveDeck === "b"}
-            playlistTracks={browseTracksByDeck.b}
-            loadedTrackId={snap.b.track.id}
-            browseCursor={safeCursorByDeck.b}
-            keyFilterFlash={keyFilterFlashByDeck.b}
-            onSelectTrack={(trackId) => {
-              if (browseSource === "remote") {
-                dispatchAction({ type: "loadRemoteTrack", id: "b", trackId });
-                return;
-              }
-              dispatchAction({ type: "loadTrack", id: "b", trackId });
-            }}
-            onKeyMetricClick={() => openCamelotPicker("b")}
-            remoteLoad={remote.byDeck.b}
-            onRetryRemote={() => {
-              void remote.retry("b").then((ok) => {
-                if (ok) dispatch({ type: "refresh" });
-              });
-            }}
-            onLoadPrepare={prepareDeckLoad}
-            onFile={(file) => handleDeckFile("b", file)}
-            onChange={dispatchAction}
+        <div className="mixer-board">
+          <MasterWaveforms />
+          <div className="mixer-board-decks">
+            <CdjDeck
+              id="a"
+              masterKey={masterKey}
+              midiConnected={midi.status === "connected"}
+              loadPending={pendingLoad === "a"}
+              libraryLoading={libraryLoading}
+              browseKeyFilter={browseKeyFilter}
+              onKeyMetricClick={() => openCamelotPicker("a")}
+              remoteLoad={remote.byDeck.a}
+              onRetryRemote={() => {
+                void remote.retry("a").then((ok) => {
+                  if (ok) dispatch({ type: "refresh" });
+                });
+              }}
+              onFile={(file) => handleDeckFile("a", file)}
+              onChange={dispatchAction}
+            />
+            <MixerConsole snap={snap} onChange={dispatchAction} />
+            <CdjDeck
+              id="b"
+              masterKey={masterKey}
+              midiConnected={midi.status === "connected"}
+              loadPending={pendingLoad === "b"}
+              libraryLoading={libraryLoading}
+              browseKeyFilter={browseKeyFilter}
+              onKeyMetricClick={() => openCamelotPicker("b")}
+              remoteLoad={remote.byDeck.b}
+              onRetryRemote={() => {
+                void remote.retry("b").then((ok) => {
+                  if (ok) dispatch({ type: "refresh" });
+                });
+              }}
+              onFile={(file) => handleDeckFile("b", file)}
+              onChange={dispatchAction}
+            />
+          </div>
+          <CollectionBrowser
+            tracks={browseTracks}
+            browseCursor={safeCursor}
+            loadedTrackIds={loadedTrackIds}
+            libraryLoading={libraryLoading}
+            browseIdle={browseIdle}
+            browseIdleCopy={browseIdleCopy}
+            loadingMore={loadingMore}
+            hasMore={hasMoreTracks}
+            onLoadMore={handleLoadMore}
+            collectionMode={collectionMode}
+            onCollectionModeChange={handleCollectionModeChange}
+            genres={genres}
+            selectedGenre={genreFilter}
+            selectedGenreId={genreId}
+            subgenres={subgenres}
+            selectedSubgenre={subgenreFilter}
+            emptyGenreCopy={emptyGenreCopy}
+            onSelectGenre={handleSelectGenre}
+            onSelectSubgenre={(name) => updateBrowseSession({ subgenreFilter: name, cursor: 0 })}
+            browseKeyFilter={browseKeyFilter}
+            onSelectCamelot={handleSelectCamelot}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            onSelectTrack={handleSelectTrack}
+            onDropTrack={handleDropTrack}
           />
         </div>
       </div>

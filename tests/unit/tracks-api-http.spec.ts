@@ -42,6 +42,94 @@ describe("tracks-api http-client", () => {
     );
   });
 
+  test("listCatalogTracks monta query em /api/catalog/tracks", async () => {
+    const calls: string[] = [];
+    const api = createHttpTracksClient({
+      baseUrl: "http://127.0.0.1:8765",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return jsonResponse({ total: 0, offset: 0, limit: 25, tracks: [] });
+      },
+    });
+
+    await api.listCatalogTracks({ artist: "daft", track: "one", release: "discovery", limit: 25, offset: 0 });
+    expect(calls[0]).toBe(
+      "http://127.0.0.1:8765/api/catalog/tracks?limit=25&offset=0&artist=daft&track=one&release=discovery",
+    );
+  });
+
+  test("listCatalogTracks não envia o parâmetro legado q", async () => {
+    const calls: string[] = [];
+    const api = createHttpTracksClient({
+      baseUrl: "http://127.0.0.1:8765",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return jsonResponse({ total: 0, offset: 0, limit: 25, tracks: [] });
+      },
+    });
+
+    await api.listCatalogTracks({ q: "daft", artist: "daft" });
+    expect(calls[0]).toBe("http://127.0.0.1:8765/api/catalog/tracks?artist=daft");
+    expect(calls[0]).not.toContain("q=");
+  });
+
+  test("getCatalogTrack chama /api/catalog/tracks/{beatport_id}", async () => {
+    const calls: string[] = [];
+    const api = createHttpTracksClient({
+      baseUrl: "http://127.0.0.1:8765",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return jsonResponse({
+          beatport_id: 21910691,
+          artists: "19:26",
+          title: "Nocturne",
+          mix_name: "Original Mix",
+          bpm: 126,
+          key: "E Minor",
+          camelot: "9A",
+          genre: "Melodic House & Techno",
+          label: "Afterlife Records",
+          length_ms: 133333,
+        });
+      },
+    });
+
+    const detail = await api.getCatalogTrack(21910691);
+    expect(calls[0]).toBe("http://127.0.0.1:8765/api/catalog/tracks/21910691");
+    expect(detail.track_id).toBe("bp:21910691");
+    expect(detail.beatport_id).toBe(21910691);
+  });
+
+  test("listTracks repassa genre e artist", async () => {
+    const calls: string[] = [];
+    const api = createHttpTracksClient({
+      baseUrl: "http://127.0.0.1:8765",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return jsonResponse({ total: 0, offset: 0, limit: 50, tracks: [] });
+      },
+    });
+
+    await api.listTracks({ genre: "Melodic House", artist: "argy" });
+    expect(calls[0]).toBe(
+      "http://127.0.0.1:8765/api/tracks?artist=argy&genre=Melodic+House",
+    );
+  });
+
+  test("listGenres chama GET /api/genres", async () => {
+    const calls: string[] = [];
+    const api = createHttpTracksClient({
+      baseUrl: "http://127.0.0.1:8765",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return jsonResponse({ total: 0, synced_at: null, source: null, genres: [] });
+      },
+    });
+
+    await api.listGenres();
+    expect(calls[0]).toBe("http://127.0.0.1:8765/api/genres");
+  });
+
   test("getTrack 404 vira TracksApiError", async () => {
     const api = createHttpTracksClient({
       baseUrl: "",

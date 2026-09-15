@@ -15,6 +15,8 @@
         "npm:@netlify/functions@6",
         "npm:@netlify/vite-plugin@^3.0.1",
         "npm:@playwright/test@^1.62.1",
+        "npm:@tanstack/react-query@^5.102.8",
+        "npm:@tanstack/react-virtual@^3.14.12",
         "npm:@types/bcryptjs@^2.4.6",
         "npm:@types/node@^24.13.3",
         "npm:@types/react-dom@^19.2.4",

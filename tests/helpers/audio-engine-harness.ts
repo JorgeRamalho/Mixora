@@ -16,12 +16,16 @@ export async function createTestEngine(options: { ensure?: boolean } = {}): Prom
     g.window = g;
   }
 
-  const ctx = new MockAudioContext();
+  const created: MockAudioContext[] = [];
   const engine = new MamuteEngine({
-    createAudioContext: () => ctx as unknown as AudioContext,
+    createAudioContext: () => {
+      const next = new MockAudioContext();
+      created.push(next);
+      return next as unknown as AudioContext;
+    },
   });
   if (options.ensure !== false) {
     await engine.ensure();
   }
-  return { engine, ctx };
+  return { engine, ctx: created[0] ?? new MockAudioContext() };
 }
