@@ -33,7 +33,7 @@ export default async (req: Request) =>
     }
 
     const profile = await getProfileByAccountId(account.id);
-    const { emailSent, cooldownMs, code } = await issuePasswordReset(
+    const { emailSent, cooldownMs, code, sendFailure } = await issuePasswordReset(
       account.id,
       account.email,
       profile?.artistName ?? "",
@@ -57,7 +57,7 @@ export default async (req: Request) =>
       message: emailSent
         ? "Enviamos um código para redefinir a senha. Ele vale por 15 minutos."
         : localCode
-          ? localDevCodeMessage(localCode)
+          ? localDevCodeMessage(localCode, sendFailure)
           : "Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.",
     });
   });

@@ -178,4 +178,14 @@ test.describe("Cadastro DJ — ficha limpa até enviar ao banco", () => {
     await expect(page.getByRole("link", { name: "Entrar na Área do DJ" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Abrir o mixer" })).toBeVisible();
   });
+
+  test("conclui o cadastro sem marcar hardware na etapa opcional", async ({ page }) => {
+    await page.goto("/cadastro");
+    await dismissPrivacyBanner(page);
+    await fillCadastroJourney(page, "SemEquip", { skipHardware: true });
+    await page.getByRole("button", { name: "Concluir cadastro" }).click();
+
+    await expect(page.getByRole("heading", { name: /Parabéns, DJ SemEquip/ })).toBeVisible();
+    await expect(page.getByText("Selecione pelo menos um tipo de hardware.")).toHaveCount(0);
+  });
 });

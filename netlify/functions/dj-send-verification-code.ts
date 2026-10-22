@@ -42,7 +42,7 @@ export default async (req: Request) =>
     }
 
     const profile = await getProfileByAccountId(account.id);
-    const { emailSent, cooldownMs, code } = await issueEmailVerification(
+    const { emailSent, cooldownMs, code, sendFailure } = await issueEmailVerification(
       account.id,
       account.email,
       profile?.artistName ?? "",
@@ -68,8 +68,8 @@ export default async (req: Request) =>
       message: emailSent
         ? "Enviamos um código de verificação para o seu e-mail. Ele vale por 15 minutos."
         : localCode
-          ? localDevCodeMessage(localCode)
-          : "Não foi possível enviar o e-mail agora. Configure RESEND_API_KEY no Netlify e tente novamente.",
+          ? localDevCodeMessage(localCode, sendFailure)
+          : "Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.",
     });
   });
 

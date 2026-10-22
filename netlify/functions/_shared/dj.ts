@@ -130,7 +130,6 @@ export function isValidProfile(profile: Partial<DjProfile>): string | null {
   if (!profile.email?.trim()) return "E-mail é obrigatório.";
   if (!profile.bio?.trim()) return "Bio é obrigatória.";
   if (!profile.genres?.length) return "Selecione pelo menos um gênero.";
-  if (!profile.hardware?.length) return "Selecione pelo menos um tipo de hardware.";
   if (!profile.over18) return "Confirme que tem 18 anos ou mais.";
   if (!profile.terms) return "Aceite os termos de uso.";
   return null;

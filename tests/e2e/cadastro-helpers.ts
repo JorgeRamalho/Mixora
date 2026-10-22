@@ -5,7 +5,11 @@ export async function continueCadastro(page: Page): Promise<void> {
 }
 
 /** Preenche o mínimo obrigatório e avança as 8 etapas até o botão de concluir. */
-export async function fillCadastroJourney(page: Page, suffix: string): Promise<void> {
+export async function fillCadastroJourney(
+  page: Page,
+  suffix: string,
+  options?: { skipHardware?: boolean },
+): Promise<void> {
   await page.getByRole("textbox", { name: "Nome completo" }).fill(`Nome ${suffix}`);
   await page.getByRole("textbox", { name: "Nome artístico" }).fill(`DJ ${suffix}`);
   await page.getByRole("textbox", { name: "Cidade" }).fill("São Paulo");
@@ -23,7 +27,9 @@ export async function fillCadastroJourney(page: Page, suffix: string): Promise<v
   await continueCadastro(page);
 
   await expect(page.getByRole("heading", { name: "4. Equipamento" })).toBeVisible();
-  await page.getByLabel("CDJ").click();
+  if (!options?.skipHardware) {
+    await page.getByLabel("CDJ").click();
+  }
   await continueCadastro(page);
   await expect(page.getByRole("heading", { name: "5. Presença digital" })).toBeVisible();
   await page.getByRole("textbox", { name: "Instagram" }).fill(`@${suffix}`);

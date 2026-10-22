@@ -20,8 +20,39 @@ export function isNetlifyLocalDev(): boolean {
 export const ACCOUNT_NOT_FOUND_MESSAGE =
   "Não há conta com este e-mail no servidor. Se você já preencheu o Cadastro DJ neste navegador, o e-mail do visor precisa ser o mesmo — informe a senha para sincronizar. Caso contrário, conclua o cadastro.";
 
-export function localDevCodeMessage(code: string): string {
-  return `E-mail ainda não configurado (falta RESEND_API_KEY). Use o código ${code} — vale 15 minutos.`;
+export type EmailSendFailure = {
+  reason: "missing_api_key" | "provider_error";
+  providerMessage?: string;
+};
+
+export function hasResendApiKey(): boolean {
+  return Boolean(readEnv("RESEND_API_KEY"));
+}
+
+function readEnv(name: string): string | undefined {
+  try {
+    const netlify = (globalThis as { Netlify?: { env?: { get?: (key: string) => string | undefined } } }).Netlify;
+    const fromNetlify = netlify?.env?.get?.(name)?.trim();
+    if (fromNetlify) return fromNetlify;
+  } catch {
+    // Netlify.env may be absent outside the Functions runtime
+  }
+  return process.env[name]?.trim() || undefined;
+}
+
+export function localDevCodeMessage(code: string, failure?: EmailSendFailure): string {
+  const codeHint = ` Use o código ${code} — vale 15 minutos.`;
+  if (!failure || failure.reason === "missing_api_key") {
+    return `E-mail ainda não configurado (falta RESEND_API_KEY).${codeHint}`;
+  }
+  const provider = failure.providerMessage?.trim() ?? "";
+  if (/own email|testing emails|only send testing/i.test(provider)) {
+    return `O Resend de teste só entrega no e-mail da conta Resend. Para enviar a qualquer caixa, verifique um domínio em resend.com/domains e defina EMAIL_FROM com esse domínio.${codeHint}`;
+  }
+  if (provider) {
+    return `O Resend recusou o envio: ${provider}${codeHint}`;
+  }
+  return `Não foi possível entregar o e-mail agora.${codeHint}`;
 }
 
 export function getSiteUrl(): string {
@@ -96,11 +127,25 @@ async function persistDevMail(payload: DevMailPayload): Promise<void> {
 
 export type SendEmailResult =
   | { sent: true }
-  | { sent: false; reason: "missing_api_key" | "provider_error" };
+  | { sent: false; reason: "missing_api_key" | "provider_error"; providerMessage?: string };
+
+function parseProviderMessage(status: number, body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+  } catch {
+    // not JSON
+  }
+  const trimmed = body.trim();
+  if (trimmed && trimmed.length < 280) return trimmed;
+  return `HTTP ${status}`;
+}
 
 async function sendEmail(to: string, subject: string, html: string, fallbackLog: string): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.EMAIL_FROM?.trim() ?? "Mamute DJPLAYER <onboarding@resend.dev>";
+  const apiKey = readEnv("RESEND_API_KEY");
+  const from = readEnv("EMAIL_FROM") ?? "Mamute DJPLAYER <onboarding@resend.dev>";
 
   if (!apiKey) {
     console.warn(`[mamute-email] RESEND_API_KEY ausente. ${fallbackLog}`);
@@ -124,8 +169,10 @@ async function sendEmail(to: string, subject: string, html: string, fallbackLog:
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error("[mamute-email] Falha ao enviar e-mail:", response.status, detail);
-    return { sent: false, reason: "provider_error" };
+    const providerMessage = parseProviderMessage(response.status, detail);
+    console.error("[mamute-email] Falha ao enviar e-mail:", response.status, providerMessage);
+    await persistDevMail({ to, subject, fallbackLog: `${fallbackLog} · ${providerMessage}` });
+    return { sent: false, reason: "provider_error", providerMessage };
   }
 
   return { sent: true };

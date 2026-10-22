@@ -34,7 +34,7 @@ async function respondWithVerification(
   profile: DjProfile,
   mode: "created" | "updated",
 ) {
-  const { emailSent, code } = await issueEmailVerification(accountId, email, artistName);
+  const { emailSent, code, sendFailure } = await issueEmailVerification(accountId, email, artistName);
   const localCode = isNetlifyLocalDev() && !emailSent ? code : undefined;
   return jsonResponse({
     ok: true,
@@ -46,7 +46,7 @@ async function respondWithVerification(
     message: emailSent
       ? "Cadastro gravado. Enviamos um código de verificação e um link — use um dos dois para entrar no portal."
       : localCode
-        ? `Cadastro gravado. ${localDevCodeMessage(localCode)}`
+        ? `Cadastro gravado. ${localDevCodeMessage(localCode, sendFailure)}`
         : "Cadastro gravado. Confirme o e-mail pelo código ou pelo link (peça reenvio na Área do DJ).",
   });
 }

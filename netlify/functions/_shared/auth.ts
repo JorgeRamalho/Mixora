@@ -12,6 +12,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
   VERIFICATION_TTL_MS,
+  type EmailSendFailure,
 } from "./email.js";
 import { authCodeCooldownRemaining } from "./rate-limit.js";
 import { normalizeEmail, profileRowToClient } from "./dj.js";
@@ -28,7 +29,13 @@ export async function issueEmailVerification(
   email: string,
   artistName: string,
   options?: { skipCooldown?: boolean },
-): Promise<{ token: string; emailSent: boolean; cooldownMs?: number; code?: string }> {
+): Promise<{
+  token: string;
+  emailSent: boolean;
+  cooldownMs?: number;
+  code?: string;
+  sendFailure?: EmailSendFailure;
+}> {
   const account = await getAccountById(accountId);
   if (!options?.skipCooldown && account) {
     const cooldownMs = authCodeCooldownRemaining(account.emailVerificationCodeExpiresAt);
@@ -56,7 +63,14 @@ export async function issueEmailVerification(
     .where(eq(djAccounts.id, accountId));
 
   const sendResult = await sendVerificationEmail(email, artistName, buildVerificationUrl(token), code);
-  return { token, emailSent: sendResult.sent, code };
+  return {
+    token,
+    emailSent: sendResult.sent,
+    code,
+    sendFailure: sendResult.sent
+      ? undefined
+      : { reason: sendResult.reason, providerMessage: sendResult.providerMessage },
+  };
 }
 
 export async function markEmailVerified(accountId: string): Promise<void> {
@@ -96,7 +110,7 @@ export async function issuePasswordReset(
   accountId: string,
   email: string,
   artistName: string,
-): Promise<{ emailSent: boolean; cooldownMs?: number; code?: string }> {
+): Promise<{ emailSent: boolean; cooldownMs?: number; code?: string; sendFailure?: EmailSendFailure }> {
   const account = await getAccountById(accountId);
   if (account) {
     const cooldownMs = authCodeCooldownRemaining(account.passwordResetExpiresAt);
@@ -119,7 +133,13 @@ export async function issuePasswordReset(
     .where(eq(djAccounts.id, accountId));
 
   const sendResult = await sendPasswordResetEmail(email, artistName, code);
-  return { emailSent: sendResult.sent, code };
+  return {
+    emailSent: sendResult.sent,
+    code,
+    sendFailure: sendResult.sent
+      ? undefined
+      : { reason: sendResult.reason, providerMessage: sendResult.providerMessage },
+  };
 }
 
 export async function resetPasswordWithCode(

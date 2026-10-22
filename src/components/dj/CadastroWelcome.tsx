@@ -6,6 +6,7 @@ type CadastroWelcomeProps = {
   emailVerificationRequired: boolean;
   emailSent: boolean;
   localCode?: string;
+  statusMessage?: string;
 };
 
 export function CadastroWelcome({
@@ -14,6 +15,7 @@ export function CadastroWelcome({
   emailVerificationRequired,
   emailSent,
   localCode,
+  statusMessage,
 }: CadastroWelcomeProps) {
   const displayName = artistName.trim() || "DJ";
   const confirmQuery = new URLSearchParams({ email });
@@ -37,9 +39,11 @@ export function CadastroWelcome({
         <p className="form-status dj-register-welcome-status" role="status">
           {emailSent
             ? `Enviamos a confirmação para ${email}. Confirme o e-mail para liberar o login.`
-            : localCode
-              ? `Cadastro gravado no servidor. E-mail de envio ainda não está configurado — use o código ${localCode} na Área do DJ.`
-              : `Confirme ${email} pelo código ou pelo link para entrar na Área do DJ.`}
+            : statusMessage
+              ? statusMessage
+              : localCode
+                ? `Cadastro gravado no servidor. Use o código ${localCode} na Área do DJ — vale 15 minutos.`
+                : `Confirme ${email} pelo código ou pelo link para entrar na Área do DJ.`}
         </p>
       ) : (
         <p className="form-status dj-register-welcome-status" role="status">

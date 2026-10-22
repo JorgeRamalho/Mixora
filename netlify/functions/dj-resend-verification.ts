@@ -53,7 +53,12 @@ export default async (req: Request) => {
 
   const profile = await getProfileByAccountId(account.id);
   const artistName = profile?.artistName ?? "";
-  const { emailSent, cooldownMs, code } = await issueEmailVerification(account.id, account.email, artistName);
+  const { emailSent, cooldownMs, code, sendFailure } = await issueEmailVerification(
+    account.id,
+    account.email,
+    artistName,
+    { skipCooldown: true },
+  );
 
   if (cooldownMs) {
     return jsonResponse({
@@ -75,7 +80,7 @@ export default async (req: Request) => {
     message: emailSent
       ? "Enviamos um novo código de verificação e um link de confirmação para o seu e-mail."
       : localCode
-        ? localDevCodeMessage(localCode)
+        ? localDevCodeMessage(localCode, sendFailure)
         : "Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.",
   });
 };

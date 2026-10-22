@@ -2,7 +2,7 @@ import type { Config } from "@netlify/functions";
 import { db } from "../../db/index.js";
 import { djAccounts } from "../../db/schema.js";
 import { errorResponse, jsonResponse } from "./_shared/dj.js";
-import { isNetlifyLocalDev } from "./_shared/email.js";
+import { hasResendApiKey, isNetlifyLocalDev } from "./_shared/email.js";
 
 export default async (req: Request) => {
   if (req.method !== "GET") {
@@ -15,7 +15,7 @@ export default async (req: Request) => {
       ok: true,
       db: true,
       localDev: isNetlifyLocalDev(),
-      emailProvider: process.env.RESEND_API_KEY?.trim() ? "resend" : "dev-console",
+      emailProvider: hasResendApiKey() ? "resend" : "dev-console",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Database unavailable";

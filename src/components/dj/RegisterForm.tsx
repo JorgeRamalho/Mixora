@@ -179,6 +179,7 @@ type WelcomeState = {
   emailVerificationRequired: boolean;
   emailSent: boolean;
   localCode?: string;
+  statusMessage?: string;
 };
 
 type RegisterFormProps = {
@@ -336,6 +337,7 @@ export function RegisterForm({ selectedPlan = null, onJourneyComplete }: Registe
         emailVerificationRequired: Boolean(result.emailVerificationRequired),
         emailSent: Boolean(result.emailSent),
         localCode: result.localCode,
+        statusMessage: result.message,
       });
       onJourneyComplete?.();
       return;
@@ -352,6 +354,7 @@ export function RegisterForm({ selectedPlan = null, onJourneyComplete }: Registe
           emailVerificationRequired={welcome.emailVerificationRequired}
           emailSent={welcome.emailSent}
           localCode={welcome.localCode}
+          statusMessage={welcome.statusMessage}
         />
       </div>
     );
