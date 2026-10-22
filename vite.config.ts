@@ -13,6 +13,9 @@ function liveBundleStamp(): Plugin {
       fs.mkdirSync("dist", { recursive: true });
       fs.writeFileSync(path.join("dist", "live-bundle.json"), JSON.stringify(stamp), "utf8");
       fs.writeFileSync(path.join("dist", "_redirects"), "/*    /index.html   200\n", "utf8");
+      const indexHtml = path.join("dist", "index.html");
+      fs.copyFileSync(indexHtml, path.join("dist", "404.html"));
+      fs.writeFileSync(path.join("dist", ".nojekyll"), "", "utf8");
     },
   };
 }

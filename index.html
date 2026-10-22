@@ -139,11 +139,12 @@
       })();
 
       (function () {
+        if (document.querySelector('script[src*="src/main.tsx"]')) return;
+        if (document.querySelector('script[src*="assets/main.js"]')) return;
+
         var port = String(location.port || "");
         if (!port) return;
         if (/^517\d$/.test(port) || port === "4173" || port === "8888") return;
-        if (document.querySelector('script[src*="src/main.tsx"]')) return;
-        if (document.querySelector('script[src*="assets/main.js"]')) return;
 
         var VITE_ORIGIN = "http://127.0.0.1:5173";
         var VITE_POLL_MS = 1500;
